@@ -1,7 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
-import { createCourse, type CreateCourseState } from "./actions";
+import { useState, useTransition, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,19 +10,28 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-export default function CreateCourseForm() {
-  const [state, formAction, isPending] = useActionState<
-    CreateCourseState,
-    FormData
-  >(createCourse, null);
+type CourseActionResult = { error: string } | { success: true } | null;
 
+type Props = {
+  action: (prevState: null, formData: FormData) => Promise<CourseActionResult>;
+};
+
+export default function CreateCourseForm({ action }: Props) {
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
-  useEffect(() => {
-    if (state && "success" in state) {
-      formRef.current?.reset();
-    }
-  }, [state]);
+  function handleSubmit(formData: FormData) {
+    startTransition(async () => {
+      const result = await action(null, formData);
+      if (result && "error" in result) {
+        setError(result.error);
+      } else {
+        setError(null);
+        formRef.current?.reset();
+      }
+    });
+  }
 
   return (
     <Card>
@@ -31,21 +39,14 @@ export default function CreateCourseForm() {
         <CardTitle className="text-base">New Course</CardTitle>
       </CardHeader>
       <CardContent>
-        <form ref={formRef} action={formAction} className="space-y-3">
+        <form ref={formRef} action={handleSubmit} className="space-y-3">
           <Input
             name="title"
             placeholder="Course title (e.g. Calculus II)"
             required
             disabled={isPending}
           />
-          <Input
-            name="course_code"
-            placeholder="Course code — optional (e.g. MATH 201)"
-            disabled={isPending}
-          />
-          {state && "error" in state && (
-            <p className="text-sm text-destructive">{state.error}</p>
-          )}
+{error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" size="sm" disabled={isPending}>
             {isPending ? "Creating…" : "Create course"}
           </Button>

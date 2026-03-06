@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import SignOutButton from "./sign-out-button";
 import CreateCourseForm from "./create-course-form";
 import { Card, CardContent } from "@/components/ui/card";
+import { createCourse } from "./actions";
 
 export default async function AppPage() {
   const supabase = await createClient();
@@ -27,7 +28,7 @@ export default async function AppPage() {
   // Fetch this user's courses
   const { data: courses } = await supabase
     .from("courses")
-    .select("id, title, course_code, created_at")
+    .select("id, title, created_at")
     .order("created_at", { ascending: false });
 
   return (
@@ -68,7 +69,7 @@ export default async function AppPage() {
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
             Add a course
           </h2>
-          <CreateCourseForm />
+          <CreateCourseForm action={createCourse} />
         </section>
 
         {/* Courses list */}
@@ -86,11 +87,6 @@ export default async function AppPage() {
                 <Card key={course.id}>
                   <CardContent className="p-4">
                     <p className="font-medium text-gray-900">{course.title}</p>
-                    {course.course_code && (
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {course.course_code}
-                      </p>
-                    )}
                     <p className="text-xs text-gray-300 mt-2">
                       {new Date(course.created_at).toLocaleDateString()}
                     </p>
