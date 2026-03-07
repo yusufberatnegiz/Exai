@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import SignOutButton from "@/app/app/sign-out-button";
 import UploadForm from "./upload-form";
 import { uploadDocument } from "./actions";
+import GenerateForm from "./generate-form";
+import { generateQuestions } from "./generate-actions";
 
 const STATUS_STYLES: Record<string, string> = {
   uploaded: "text-gray-400",
@@ -41,6 +43,16 @@ export default async function CourseDetailPage({
     .eq("course_id", courseId)
     .order("created_at", { ascending: false });
 
+  const hasReadyDocs = (documents ?? []).some((d) => d.status === "ready");
+
+  // Fetch question sets with question count
+  const { data: questionSets } = await supabase
+    .from("question_sets")
+    .select("id, title, created_at, questions(count)")
+    .eq("course_id", courseId)
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
+
   return (
     <div className="min-h-screen bg-white">
       <nav className="border-b border-gray-100">
@@ -70,6 +82,18 @@ export default async function CourseDetailPage({
             Upload exam
           </h2>
           <UploadForm courseId={courseId} action={uploadDocument} />
+        </section>
+
+        {/* Generate questions */}
+        <section>
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+            Generate questions
+          </h2>
+          <GenerateForm
+            courseId={courseId}
+            action={generateQuestions}
+            hasReadyDocs={hasReadyDocs}
+          />
         </section>
 
         {/* Documents list */}
@@ -111,6 +135,45 @@ export default async function CourseDetailPage({
                   </span>
                 </div>
               ))}
+            </div>
+          )}
+        </section>
+        {/* Question sets list */}
+        <section>
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+            Question sets
+          </h2>
+
+          {!questionSets || questionSets.length === 0 ? (
+            <p className="text-sm text-gray-400">
+              No question sets yet. Generate one above.
+            </p>
+          ) : (
+            <div className="divide-y divide-gray-100 rounded-xl border border-gray-100">
+              {questionSets.map((qs) => {
+                const count =
+                  Array.isArray(qs.questions) && qs.questions.length > 0
+                    ? (qs.questions[0] as { count: number }).count
+                    : 0;
+                return (
+                  <div
+                    key={qs.id}
+                    className="flex items-center justify-between px-4 py-3 gap-4"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">
+                        {qs.title}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {new Date(qs.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                    <span className="text-xs text-gray-500 shrink-0">
+                      {count} {count === 1 ? "question" : "questions"}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>
