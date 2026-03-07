@@ -5,6 +5,8 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
+import { extractTextFromPdf } from "@/lib/extract";
+import { getSourceFileMimeType } from "@/lib/source-upload";
 
 export type GenerateState = { error: string } | { success: true } | null;
 
@@ -34,9 +36,21 @@ export async function generateQuestions(
   formData: FormData
 ): Promise<GenerateState> {
   const courseId = formData.get("courseId") as string;
+  const examFile = formData.get("examFile") as File | null;
+  const pastedText = ((formData.get("pastedText") as string) ?? "").trim();
 
   if (!z.string().uuid().safeParse(courseId).success) {
     return { error: "Invalid course." };
+  }
+
+  const hasExamFile = !!examFile && examFile.size > 0;
+  const hasText = pastedText.length > 0;
+
+  if (!hasExamFile && !hasText) {
+    return {
+      error:
+        "Provide a past exam PDF or paste exam text — at least one is required.",
+    };
   }
 
   const supabase = await createClient();
@@ -45,7 +59,6 @@ export async function generateQuestions(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  // Verify course ownership
   const { data: course } = await supabase
     .from("courses")
     .select("id, title")
@@ -54,7 +67,12 @@ export async function generateQuestions(
     .single();
   if (!course) return { error: "Course not found." };
 
-  // Get IDs of ready documents in this course
+  // ---------------------------------------------------------------------------
+  // 1. Gather source material chunks (knowledge base — optional)
+  // ---------------------------------------------------------------------------
+
+  let knowledgeBase = "";
+
   const { data: readyDocs } = await supabase
     .from("documents")
     .select("id")
@@ -62,33 +80,60 @@ export async function generateQuestions(
     .eq("status", "ready");
 
   const readyIds = (readyDocs ?? []).map((d) => d.id);
-  if (readyIds.length === 0) {
-    return {
-      error:
-        "No ready documents found. Upload a document and wait for extraction to finish.",
-    };
+
+  if (readyIds.length > 0) {
+    const { data: chunks } = await supabase
+      .from("document_chunks")
+      .select("content")
+      .in("document_id", readyIds)
+      .order("chunk_index", { ascending: true });
+
+    const MAX_KB = 6000;
+    for (const chunk of chunks ?? []) {
+      if (knowledgeBase.length + chunk.content.length > MAX_KB) break;
+      knowledgeBase += chunk.content + "\n\n";
+    }
   }
 
-  // Fetch chunks for those documents, ordered by document + chunk index
-  const { data: chunks } = await supabase
-    .from("document_chunks")
-    .select("content")
-    .in("document_id", readyIds)
-    .order("chunk_index", { ascending: true });
+  // ---------------------------------------------------------------------------
+  // 2. Extract exam context (style/structure reference — required)
+  // ---------------------------------------------------------------------------
 
-  if (!chunks || chunks.length === 0) {
-    return { error: "Documents processed but no content found." };
+  let examContext = "";
+
+  if (hasText) {
+    examContext = pastedText.slice(0, 4000);
+  } else if (hasExamFile && examFile) {
+    const mimeType = getSourceFileMimeType(examFile) ?? examFile.type;
+    if (mimeType !== "application/pdf") {
+      return {
+        error:
+          "Only PDF files are supported for exam upload. Paste the text instead.",
+      };
+    }
+    const buffer = await examFile.arrayBuffer();
+    const extracted = await extractTextFromPdf(buffer);
+    if (extracted.trim().length < 20) {
+      return {
+        error:
+          "Could not extract text from the exam PDF — it may be scanned. Paste the text instead.",
+      };
+    }
+    examContext = extracted.slice(0, 4000);
   }
 
-  // Cap material at ~8 000 chars to keep prompt cost reasonable
-  const MAX_CHARS = 8000;
-  let material = "";
-  for (const chunk of chunks) {
-    if (material.length + chunk.content.length > MAX_CHARS) break;
-    material += chunk.content + "\n\n";
-  }
+  // ---------------------------------------------------------------------------
+  // 3. Build AI user message
+  // ---------------------------------------------------------------------------
 
-  // Create question_set row first so we can roll it back on AI failure
+  const userMessage = knowledgeBase
+    ? `## Course Material (Knowledge Base)\n${knowledgeBase.trim()}\n\n## Past Exam (Style Reference)\n${examContext.trim()}\n\nGenerate 5 questions based on the course material. Match the style and difficulty of the past exam.`
+    : `## Source Material\n${examContext.trim()}\n\nGenerate 5 exam-style questions from this material.`;
+
+  // ---------------------------------------------------------------------------
+  // 4. Create question_set row (roll back on AI failure)
+  // ---------------------------------------------------------------------------
+
   const questionSetId = randomUUID();
   const title = `${course.title} — ${new Date().toLocaleDateString("en-GB")}`;
 
@@ -100,7 +145,10 @@ export async function generateQuestions(
   });
   if (qsError) return { error: `Could not create question set: ${qsError.message}` };
 
-  // Call OpenAI server-side (key never leaves the server)
+  // ---------------------------------------------------------------------------
+  // 5. Call OpenAI server-side
+  // ---------------------------------------------------------------------------
+
   const openai = new OpenAI({ apiKey: process.env.AI_API_KEY });
 
   let parsed: z.infer<typeof AIResponseSchema>;
@@ -115,11 +163,11 @@ export async function generateQuestions(
           content: `You are generating university exam-style practice questions for a one-question-at-a-time study app.
 
 RULES:
-- Use ONLY the provided material as the source.
 - Each question must test exactly ONE main concept — no multi-part questions.
 - Keep question_text short and concise (1–3 sentences max). Do not number or label questions.
 - Write solution_text as a clear, complete model answer (not a list of sub-answers).
-- Questions must be directly answerable from the material.
+- Questions must be directly answerable from the provided material.
+- If a past exam is provided as style reference, match its question style and difficulty.
 
 QUESTION MIX — generate exactly 5 questions in this order:
 1. Definition question — "Define X" or "What is X?"
@@ -144,7 +192,7 @@ Return EXACTLY 5 questions as a JSON object:
         },
         {
           role: "user",
-          content: `Generate 5 exam-style questions from this material:\n\n${material}`,
+          content: userMessage,
         },
       ],
     });
@@ -153,13 +201,15 @@ Return EXACTLY 5 questions as a JSON object:
     const json = JSON.parse(raw);
     parsed = AIResponseSchema.parse(json);
   } catch (err) {
-    // Roll back the empty question_set row
     await supabase.from("question_sets").delete().eq("id", questionSetId);
     const msg = err instanceof Error ? err.message : "Unknown error";
     return { error: `AI generation failed: ${msg}` };
   }
 
-  // Insert questions
+  // ---------------------------------------------------------------------------
+  // 6. Insert questions
+  // ---------------------------------------------------------------------------
+
   const { error: qError } = await supabase.from("questions").insert(
     parsed.questions.map((q, i) => ({
       user_id: user.id,

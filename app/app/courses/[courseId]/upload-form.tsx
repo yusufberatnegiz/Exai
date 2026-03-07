@@ -1,113 +1,90 @@
 "use client";
 
 import { useState, useTransition, useRef } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-
-type UploadState = { error: string } | { success: true } | null;
+import type { UploadState } from "./actions";
 
 type Props = {
   courseId: string;
   action: (prevState: null, formData: FormData) => Promise<UploadState>;
 };
 
-export default function UploadForm({ courseId, action }: Props) {
+export default function SourceUploadForm({ courseId, action }: Props) {
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [state, setState] = useState<UploadState>(null);
+  const [fileNames, setFileNames] = useState<string[]>([]);
   const formRef = useRef<HTMLFormElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  function handleSubmit(formData: FormData) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
     startTransition(async () => {
       const result = await action(null, formData);
-      if (result && "error" in result) {
-        setError(result.error);
-      } else {
-        setError(null);
-        setFileName(null);
+      setState(result);
+      if (result && "success" in result) {
+        setFileNames([]);
         formRef.current?.reset();
       }
     });
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Upload Exam</CardTitle>
-        <CardDescription>
-          Upload a PDF or image, or paste the exam text directly.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form ref={formRef} action={handleSubmit} className="space-y-4">
-          <input type="hidden" name="courseId" value={courseId} />
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-3">
+      <input type="hidden" name="courseId" value={courseId} />
 
-          {/* File picker */}
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-1.5">
-              File (PDF, PNG, JPG — max 10 MB)
-            </label>
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={isPending}
-                onClick={() => fileRef.current?.click()}
-              >
-                Choose file
-              </Button>
-              <span className="text-sm text-gray-400 truncate max-w-[200px]">
-                {fileName ?? "No file chosen"}
-              </span>
-            </div>
-            <input
-              ref={fileRef}
-              type="file"
-              name="file"
-              accept=".pdf,.png,.jpg,.jpeg"
-              className="hidden"
-              disabled={isPending}
-              onChange={(e) =>
-                setFileName(e.target.files?.[0]?.name ?? null)
-              }
-            />
-          </div>
+      <div>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={isPending}
+            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg
+              hover:bg-gray-50 transition-colors disabled:opacity-40"
+          >
+            Choose files
+          </button>
+          <span className="text-sm text-gray-400 truncate max-w-xs">
+            {fileNames.length === 0
+              ? "No files chosen"
+              : fileNames.length === 1
+              ? fileNames[0]
+              : `${fileNames.length} files selected`}
+          </span>
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          name="files"
+          accept=".pdf,.docx,.ppt,.pptx"
+          multiple
+          className="hidden"
+          disabled={isPending}
+          onChange={(e) =>
+            setFileNames(Array.from(e.target.files ?? []).map((f) => f.name))
+          }
+        />
+        <p className="text-xs text-gray-400 mt-1.5">
+          PDF, DOCX, PPT, PPTX — max 10 MB each
+        </p>
+      </div>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 text-xs text-gray-300">
-            <div className="flex-1 h-px bg-gray-100" />
-            or paste text
-            <div className="flex-1 h-px bg-gray-100" />
-          </div>
+      {state && "error" in state && (
+        <p className="text-sm text-red-500 whitespace-pre-line">{state.error}</p>
+      )}
+      {state && "success" in state && (
+        <p className="text-sm text-green-600">
+          Files uploaded and processing.
+        </p>
+      )}
 
-          {/* Paste area */}
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-1.5">
-              Paste exam text
-            </label>
-            <Textarea
-              name="pastedText"
-              placeholder="Paste the full exam text here…"
-              disabled={isPending}
-            />
-          </div>
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
-          <Button type="submit" disabled={isPending}>
-            {isPending ? "Uploading…" : "Upload"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+      <button
+        type="submit"
+        disabled={isPending || fileNames.length === 0}
+        className="px-4 py-2 text-sm font-medium rounded-lg bg-gray-900 text-white
+          hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        {isPending ? "Uploading…" : "Upload"}
+      </button>
+    </form>
   );
 }

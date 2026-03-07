@@ -2,8 +2,8 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import SignOutButton from "@/app/app/sign-out-button";
-import UploadForm from "./upload-form";
-import { uploadDocument } from "./actions";
+import SourceUploadForm from "./upload-form";
+import { uploadSourceMaterials } from "./actions";
 import GenerateForm from "./generate-form";
 import { generateQuestions } from "./generate-actions";
 
@@ -43,9 +43,6 @@ export default async function CourseDetailPage({
     .eq("course_id", courseId)
     .order("created_at", { ascending: false });
 
-  const hasReadyDocs = (documents ?? []).some((d) => d.status === "ready");
-
-  // Fetch question sets with question count
   const { data: questionSets } = await supabase
     .from("question_sets")
     .select("id, title, created_at, questions(count)")
@@ -73,109 +70,125 @@ export default async function CourseDetailPage({
         </div>
       </nav>
 
-      <main className="max-w-5xl mx-auto px-6 py-10 space-y-10">
+      <main className="max-w-5xl mx-auto px-6 py-10 space-y-12">
         <h1 className="text-2xl font-bold text-gray-900">{course.title}</h1>
 
-        {/* Upload */}
-        <section>
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-            Upload exam
-          </h2>
-          <UploadForm courseId={courseId} action={uploadDocument} />
-        </section>
-
-        {/* Generate questions */}
-        <section>
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-            Generate questions
-          </h2>
-          <GenerateForm
-            courseId={courseId}
-            action={generateQuestions}
-            hasReadyDocs={hasReadyDocs}
-          />
-        </section>
-
-        {/* Documents list */}
-        <section>
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-            Uploaded documents
-          </h2>
-
-          {!documents || documents.length === 0 ? (
-            <p className="text-sm text-gray-400">
-              No documents yet. Upload one above.
+        {/* ── Section 1: Course Materials ─────────────────────────────── */}
+        <section className="space-y-6">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">
+              Course Materials
+            </h2>
+            <p className="text-sm text-gray-400 mt-0.5">
+              Upload lecture notes, textbook chapters, or slides. These are used
+              as the knowledge base for question generation.
             </p>
-          ) : (
-            <div className="divide-y divide-gray-100 rounded-xl border border-gray-100">
-              {documents.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex items-start justify-between px-4 py-3 gap-4"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">
-                      {doc.filename}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {new Date(doc.created_at).toLocaleString()}
-                    </p>
-                    {doc.status === "failed" && doc.error && (
-                      <p className="text-xs text-red-400 mt-1">
-                        {doc.error}
-                      </p>
-                    )}
-                  </div>
-                  <span
-                    className={`text-xs font-medium capitalize shrink-0 pt-0.5 ${
-                      STATUS_STYLES[doc.status] ?? "text-gray-400"
-                    }`}
-                  >
-                    {doc.status}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-        {/* Question sets list */}
-        <section>
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-            Question sets
-          </h2>
+          </div>
 
-          {!questionSets || questionSets.length === 0 ? (
-            <p className="text-sm text-gray-400">
-              No question sets yet. Generate one above.
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+              Upload files
             </p>
-          ) : (
-            <div className="divide-y divide-gray-100 rounded-xl border border-gray-100">
-              {questionSets.map((qs) => {
-                const count =
-                  Array.isArray(qs.questions) && qs.questions.length > 0
-                    ? (qs.questions[0] as { count: number }).count
-                    : 0;
-                return (
+            <SourceUploadForm
+              courseId={courseId}
+              action={uploadSourceMaterials}
+            />
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+              Uploaded materials
+            </p>
+            {!documents || documents.length === 0 ? (
+              <p className="text-sm text-gray-400">No files uploaded yet.</p>
+            ) : (
+              <div className="divide-y divide-gray-100 rounded-xl border border-gray-100">
+                {documents.map((doc) => (
                   <div
-                    key={qs.id}
-                    className="flex items-center justify-between px-4 py-3 gap-4"
+                    key={doc.id}
+                    className="flex items-start justify-between px-4 py-3 gap-4"
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-800 truncate">
-                        {qs.title}
+                        {doc.filename}
                       </p>
                       <p className="text-xs text-gray-400 mt-0.5">
-                        {new Date(qs.created_at).toLocaleString()}
+                        {new Date(doc.created_at).toLocaleString()}
                       </p>
+                      {doc.status === "failed" && doc.error && (
+                        <p className="text-xs text-red-400 mt-1">{doc.error}</p>
+                      )}
                     </div>
-                    <span className="text-xs text-gray-500 shrink-0">
-                      {count} {count === 1 ? "question" : "questions"}
+                    <span
+                      className={`text-xs font-medium capitalize shrink-0 pt-0.5 ${
+                        STATUS_STYLES[doc.status] ?? "text-gray-400"
+                      }`}
+                    >
+                      {doc.status}
                     </span>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* ── Section 2: Generate Questions ───────────────────────────── */}
+        <section className="space-y-6 pt-4 border-t border-gray-100">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">
+              Generate Questions
+            </h2>
+            <p className="text-sm text-gray-400 mt-0.5">
+              Upload a past exam PDF or paste exam questions to set the style.
+              Questions are generated from your course materials.
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+              Exam input
+            </p>
+            <GenerateForm courseId={courseId} action={generateQuestions} />
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+              Question sets
+            </p>
+            {!questionSets || questionSets.length === 0 ? (
+              <p className="text-sm text-gray-400">
+                No question sets yet. Generate one above.
+              </p>
+            ) : (
+              <div className="divide-y divide-gray-100 rounded-xl border border-gray-100">
+                {questionSets.map((qs) => {
+                  const count =
+                    Array.isArray(qs.questions) && qs.questions.length > 0
+                      ? (qs.questions[0] as { count: number }).count
+                      : 0;
+                  return (
+                    <div
+                      key={qs.id}
+                      className="flex items-center justify-between px-4 py-3 gap-4"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">
+                          {qs.title}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {new Date(qs.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <span className="text-xs text-gray-500 shrink-0">
+                        {count} {count === 1 ? "question" : "questions"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </section>
       </main>
     </div>

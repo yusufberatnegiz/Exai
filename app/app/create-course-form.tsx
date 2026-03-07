@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -9,26 +10,26 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-
-type CourseActionResult = { error: string } | { success: true } | null;
+import type { CreateCourseState } from "./actions";
 
 type Props = {
-  action: (prevState: null, formData: FormData) => Promise<CourseActionResult>;
+  action: (prevState: null, formData: FormData) => Promise<CreateCourseState>;
 };
 
 export default function CreateCourseForm({ action }: Props) {
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<CreateCourseState>(null);
+  const [fileNames, setFileNames] = useState<string[]>([]);
   const formRef = useRef<HTMLFormElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   function handleSubmit(formData: FormData) {
     startTransition(async () => {
       const result = await action(null, formData);
-      if (result && "error" in result) {
-        setError(result.error);
-      } else {
-        setError(null);
-        formRef.current?.reset();
+      setState(result);
+      if (result && "success" in result) {
+        router.push(`/app/courses/${result.courseId}`);
       }
     });
   }
@@ -46,7 +47,54 @@ export default function CreateCourseForm({ action }: Props) {
             required
             disabled={isPending}
           />
-{error && <p className="text-sm text-destructive">{error}</p>}
+
+          {/* Optional source file upload */}
+          <div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={isPending}
+                className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg
+                  hover:bg-gray-50 transition-colors disabled:opacity-40"
+              >
+                Add source files
+              </button>
+              <span className="text-xs text-gray-400 truncate max-w-[200px]">
+                {fileNames.length === 0
+                  ? "Optional — PDF, DOCX, PPT, PPTX"
+                  : fileNames.length === 1
+                  ? fileNames[0]
+                  : `${fileNames.length} files selected`}
+              </span>
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              name="files"
+              accept=".pdf,.docx,.ppt,.pptx"
+              multiple
+              className="hidden"
+              disabled={isPending}
+              onChange={(e) =>
+                setFileNames(Array.from(e.target.files ?? []).map((f) => f.name))
+              }
+            />
+          </div>
+
+          {state && "error" in state && (
+            <p className="text-sm text-destructive">{state.error}</p>
+          )}
+          {state &&
+            "success" in state &&
+            state.fileErrors &&
+            state.fileErrors.length > 0 && (
+              <p className="text-sm text-amber-500 whitespace-pre-line">
+                Course created. Some files failed:{"\n"}
+                {state.fileErrors.join("\n")}
+              </p>
+            )}
+
           <Button type="submit" size="sm" disabled={isPending}>
             {isPending ? "Creating…" : "Create course"}
           </Button>
