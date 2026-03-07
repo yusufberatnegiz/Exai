@@ -26,7 +26,6 @@ export default async function CourseDetailPage({
 
   if (!user) redirect("/auth");
 
-  // Fetch course and verify ownership in one query
   const { data: course } = await supabase
     .from("courses")
     .select("id, title")
@@ -36,12 +35,30 @@ export default async function CourseDetailPage({
 
   if (!course) notFound();
 
-  // Fetch documents for this course
   const { data: documents } = await supabase
     .from("documents")
     .select("id, filename, status, created_at")
     .eq("course_id", courseId)
     .order("created_at", { ascending: false });
+
+  // Fetch job errors only for failed documents — avoids over-fetching
+  const failedIds = (documents ?? [])
+    .filter((d) => d.status === "failed")
+    .map((d) => d.id);
+
+  const jobErrors: Record<string, string> = {};
+  if (failedIds.length > 0) {
+    const { data: jobs } = await supabase
+      .from("jobs")
+      .select("document_id, error")
+      .in("document_id", failedIds)
+      .eq("type", "extract")
+      .eq("status", "failed");
+
+    jobs?.forEach((j) => {
+      if (j.document_id && j.error) jobErrors[j.document_id] = j.error;
+    });
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -89,18 +106,23 @@ export default async function CourseDetailPage({
               {documents.map((doc) => (
                 <div
                   key={doc.id}
-                  className="flex items-center justify-between px-4 py-3"
+                  className="flex items-start justify-between px-4 py-3 gap-4"
                 >
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">
                       {doc.filename}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">
                       {new Date(doc.created_at).toLocaleString()}
                     </p>
+                    {doc.status === "failed" && jobErrors[doc.id] && (
+                      <p className="text-xs text-red-400 mt-1">
+                        {jobErrors[doc.id]}
+                      </p>
+                    )}
                   </div>
                   <span
-                    className={`text-xs font-medium capitalize ${
+                    className={`text-xs font-medium capitalize shrink-0 pt-0.5 ${
                       STATUS_STYLES[doc.status] ?? "text-gray-400"
                     }`}
                   >

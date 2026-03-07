@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { chunkText, extractTextFromPdf } from "@/lib/extract";
 
 export type UploadState = { error: string } | { success: true } | null;
 
@@ -14,6 +15,106 @@ const ALLOWED_MIME_TYPES = [
   "text/plain",
 ];
 
+// ---------------------------------------------------------------------------
+// Extraction pipeline — called synchronously inside the upload action
+// ---------------------------------------------------------------------------
+
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
+async function runExtraction({
+  supabase,
+  documentId,
+  userId,
+  courseId,
+  mimeType,
+  content,
+  jobId,
+}: {
+  supabase: SupabaseClient;
+  documentId: string;
+  userId: string;
+  courseId: string;
+  mimeType: string;
+  content: ArrayBuffer | string;
+  jobId: string;
+}) {
+  // Transition: queued → processing
+  await supabase
+    .from("documents")
+    .update({ status: "processing" })
+    .eq("id", documentId);
+  await supabase
+    .from("jobs")
+    .update({ status: "processing" })
+    .eq("id", jobId);
+
+  try {
+    let text: string;
+
+    if (mimeType === "text/plain") {
+      // Case A: pasted text or plain-text file — already have the content
+      text =
+        typeof content === "string"
+          ? content
+          : new TextDecoder().decode(content as ArrayBuffer);
+    } else if (mimeType === "application/pdf") {
+      // Case B: PDF — attempt text extraction
+      const extracted = await extractTextFromPdf(content as ArrayBuffer);
+      if (extracted.trim().length < 50) {
+        // Scanned / image-only PDF — no selectable text
+        throw new Error("OCR not implemented yet");
+      }
+      text = extracted;
+    } else {
+      // Case C: image (PNG / JPEG) — OCR not available yet
+      throw new Error("OCR not implemented yet");
+    }
+
+    const chunks = chunkText(text);
+
+    if (chunks.length > 0) {
+      const { error: chunksError } = await supabase
+        .from("document_chunks")
+        .insert(
+          chunks.map((chunkContent, i) => ({
+            user_id: userId,
+            document_id: documentId,
+            chunk_index: i,
+            content: chunkContent,
+            page: null,
+            metadata: {},
+          }))
+        );
+      if (chunksError) throw new Error(chunksError.message);
+    }
+
+    // Transition: processing → ready
+    await supabase
+      .from("documents")
+      .update({ status: "ready" })
+      .eq("id", documentId);
+    await supabase
+      .from("jobs")
+      .update({ status: "done" })
+      .eq("id", jobId);
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : "Extraction failed";
+
+    await supabase
+      .from("documents")
+      .update({ status: "failed" })
+      .eq("id", documentId);
+    await supabase
+      .from("jobs")
+      .update({ status: "failed", error: errorMsg })
+      .eq("id", jobId);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Upload + extract action (called from the upload form)
+// ---------------------------------------------------------------------------
+
 export async function uploadDocument(
   _prevState: UploadState,
   formData: FormData
@@ -22,7 +123,6 @@ export async function uploadDocument(
   const file = formData.get("file") as File | null;
   const pastedText = ((formData.get("pastedText") as string) ?? "").trim();
 
-  // Validate courseId
   if (!z.string().uuid().safeParse(courseId).success) {
     return { error: "Invalid course." };
   }
@@ -40,7 +140,6 @@ export async function uploadDocument(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  // Verify user owns the course
   const { data: course } = await supabase
     .from("courses")
     .select("id")
@@ -49,7 +148,6 @@ export async function uploadDocument(
     .single();
   if (!course) return { error: "Course not found." };
 
-  // Resolve file content, name, and MIME type
   let content: ArrayBuffer | string;
   let filename: string;
   let mimeType: string;
@@ -70,11 +168,10 @@ export async function uploadDocument(
     content = pastedText;
   }
 
-  // Generate document ID upfront so we can build the path before the DB insert
   const documentId = randomUUID();
   const storagePath = `${user.id}/${courseId}/${documentId}/${filename}`;
 
-  // Upload to storage first — if this fails, no DB row is left dangling
+  // 1. Upload to storage
   const { error: storageError } = await supabase.storage
     .from("exam-uploads")
     .upload(storagePath, content, { contentType: mimeType });
@@ -83,7 +180,7 @@ export async function uploadDocument(
     return { error: `Storage error: ${storageError.message}` };
   }
 
-  // Insert document row with the final path
+  // 2. Insert document row (status = 'uploaded')
   const { error: docError } = await supabase.from("documents").insert({
     id: documentId,
     user_id: user.id,
@@ -95,9 +192,31 @@ export async function uploadDocument(
   });
 
   if (docError) {
-    // Storage succeeded but DB failed — attempt to clean up the orphaned file
     await supabase.storage.from("exam-uploads").remove([storagePath]);
     return { error: `Database error: ${docError.message}` };
+  }
+
+  // 3. Create extraction job (status = 'queued')
+  const jobId = randomUUID();
+  const { error: jobError } = await supabase.from("jobs").insert({
+    id: jobId,
+    user_id: user.id,
+    document_id: documentId,
+    type: "extract",
+    status: "queued",
+  });
+
+  // 4. Run extraction synchronously
+  if (!jobError) {
+    await runExtraction({
+      supabase,
+      documentId,
+      userId: user.id,
+      courseId,
+      mimeType,
+      content,
+      jobId,
+    });
   }
 
   revalidatePath(`/app/courses/${courseId}`);
