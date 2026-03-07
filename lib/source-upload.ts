@@ -83,6 +83,7 @@ async function runExtraction({
   content: ArrayBuffer;
   jobId: string;
 }) {
+  console.log("[extract] mimeType:", mimeType, "buffer:", content.byteLength, "bytes");
   await supabase.from("documents").update({ status: "processing" }).eq("id", documentId);
   await supabase.from("jobs").update({ status: "running" }).eq("id", jobId);
 
@@ -111,11 +112,26 @@ async function runExtraction({
       mimeType ===
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     ) {
+      console.log("[DOCX] branch entered, buffer:", content.byteLength, "bytes");
       const extracted = await extractTextFromDocx(content);
-      if (extracted.trim().length < 50) {
-        throw new Error("DOCX has no extractable text.");
+      // Normalize: collapse excess horizontal whitespace and blank lines
+      const normalized = extracted
+        .replace(/\r\n/g, "\n")
+        .replace(/[ \t]+/g, " ")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+      const nonWsChars = normalized.replace(/\s/g, "").length;
+      console.log(
+        "[DOCX] raw len:", extracted.length,
+        "normalized len:", normalized.length,
+        "non-ws chars:", nonWsChars
+      );
+      if (nonWsChars < 20) {
+        throw new Error(
+          `DOCX has no extractable text (raw: ${extracted.length} chars, non-whitespace: ${nonWsChars}).`
+        );
       }
-      text = extracted;
+      text = normalized;
     } else if (
       mimeType === "application/vnd.ms-powerpoint" ||
       mimeType ===
@@ -184,6 +200,9 @@ export async function processSourceFile(
   if (!mimeType) {
     return `${file.name}: unsupported type. Use .pdf, .docx, .ppt, .pptx, .jpg, .jpeg, or .png.`;
   }
+
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  console.log("[upload] file:", file.name, "ext:", ext, "size:", file.size, "mime:", mimeType);
 
   const content = await file.arrayBuffer();
   const documentId = randomUUID();

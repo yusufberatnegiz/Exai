@@ -85,9 +85,20 @@ export async function extractTextFromDocx(
     const mod = await import("mammoth");
     // CJS modules loaded via dynamic import expose exports under .default
     const mammoth = (mod as ReturnType<typeof Object.create>).default ?? mod;
+    console.log(
+      "[DOCX] mammoth type:", typeof mammoth,
+      "extractRawText:", typeof mammoth?.extractRawText
+    );
     const result = await mammoth.extractRawText({ arrayBuffer: buffer });
-    return result.value ?? "";
-  } catch {
+    const raw = result.value ?? "";
+    console.log(
+      "[DOCX] raw length:", raw.length,
+      "non-ws chars:", raw.replace(/\s/g, "").length,
+      "preview:", JSON.stringify(raw.slice(0, 120))
+    );
+    return raw;
+  } catch (err) {
+    console.error("[DOCX] extractTextFromDocx threw:", err);
     return "";
   }
 }
