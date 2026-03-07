@@ -9,7 +9,7 @@ export type UploadState = { error: string } | { success: true } | null;
 
 /**
  * Upload one or more source material files for a course.
- * Accepts .pdf, .docx, .ppt, .pptx — multiple files at once.
+ * Accepts .pdf, .docx, .ppt, .pptx - multiple files at once.
  * Pasted text is no longer handled here; use the generate section instead.
  */
 export async function uploadSourceMaterials(

@@ -12,7 +12,7 @@ type Props = {
 export default function GenerateForm({ courseId, action }: Props) {
   const [state, setState] = useState<GenerateState>(null);
   const [isPending, startTransition] = useTransition();
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [fileNames, setFileNames] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -23,20 +23,27 @@ export default function GenerateForm({ courseId, action }: Props) {
       const result = await action(null, formData);
       setState(result);
       if (result && "success" in result) {
-        setFileName(null);
+        setFileNames([]);
         formRef.current?.reset();
       }
     });
   }
 
+  const fileLabel =
+    fileNames.length === 0
+      ? "No files chosen"
+      : fileNames.length === 1
+      ? fileNames[0]
+      : `${fileNames.length} files selected`;
+
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
       <input type="hidden" name="courseId" value={courseId} />
 
-      {/* Past exam file */}
+      {/* Past exam files - multiple, PDF or image */}
       <div>
         <label className="text-xs font-medium text-gray-500 block mb-1.5">
-          Past exam PDF
+          Past exam files (PDF or image)
         </label>
         <div className="flex items-center gap-3">
           <button
@@ -46,21 +53,25 @@ export default function GenerateForm({ courseId, action }: Props) {
             className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg
               hover:bg-gray-50 transition-colors disabled:opacity-40"
           >
-            Choose file
+            Choose files
           </button>
           <span className="text-sm text-gray-400 truncate max-w-xs">
-            {fileName ?? "No file chosen"}
+            {fileLabel}
           </span>
         </div>
         <input
           ref={fileRef}
           type="file"
-          name="examFile"
-          accept=".pdf"
+          name="examFiles"
+          accept=".pdf,.jpg,.jpeg,.png"
+          multiple
           className="hidden"
           disabled={isPending}
-          onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+          onChange={(e) =>
+            setFileNames(Array.from(e.target.files ?? []).map((f) => f.name))
+          }
         />
+        <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG - max 10 MB each</p>
       </div>
 
       {/* Divider */}
@@ -77,15 +88,15 @@ export default function GenerateForm({ courseId, action }: Props) {
         </label>
         <Textarea
           name="pastedText"
-          placeholder="Paste the exam questions here…"
+          placeholder="Paste the exam questions here..."
           disabled={isPending}
           rows={5}
         />
       </div>
 
       <p className="text-xs text-gray-400">
-        Provide a past exam PDF or paste questions — at least one is required.
-        Your uploaded course materials are used as the knowledge base.
+        Provide at least one file or paste text. Your uploaded course materials
+        are used as the knowledge base.
       </p>
 
       {state && "error" in state && (
@@ -101,7 +112,7 @@ export default function GenerateForm({ courseId, action }: Props) {
         className="px-4 py-2 text-sm font-medium rounded-lg bg-gray-900 text-white
           hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        {isPending ? "Generating…" : "Generate Questions"}
+        {isPending ? "Generating..." : "Generate Questions"}
       </button>
     </form>
   );

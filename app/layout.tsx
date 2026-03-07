@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Studi — Practice smarter for exams",
+  title: "Studi - Practice smarter for exams",
   description:
     "Upload past exams, get AI-generated practice questions, and study one question at a time.",
 };

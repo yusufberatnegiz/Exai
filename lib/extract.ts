@@ -73,3 +73,57 @@ export async function extractTextFromPdf(
     return "";
   }
 }
+
+/**
+ * Extract plain text from a DOCX ArrayBuffer using mammoth.
+ * Returns an empty string on failure.
+ */
+export async function extractTextFromDocx(
+  buffer: ArrayBuffer
+): Promise<string> {
+  try {
+    const mammoth = await import("mammoth");
+    const result = await mammoth.extractRawText({ arrayBuffer: buffer });
+    return result.value ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Extract plain text from a PPTX ArrayBuffer.
+ * Unzips the file and reads DrawingML <a:t> text nodes from each slide XML.
+ * Returns an empty string on failure.
+ * NOTE: legacy binary .ppt is not supported — surface an error before calling.
+ */
+export async function extractTextFromPptx(
+  buffer: ArrayBuffer
+): Promise<string> {
+  try {
+    const JSZip = (await import("jszip")).default;
+    const zip = await JSZip.loadAsync(buffer);
+
+    const slideNames = Object.keys(zip.files)
+      .filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+      .sort((a, b) => {
+        const numA = parseInt(a.match(/\d+/)?.[0] ?? "0", 10);
+        const numB = parseInt(b.match(/\d+/)?.[0] ?? "0", 10);
+        return numA - numB;
+      });
+
+    const slideTexts: string[] = [];
+    for (const name of slideNames) {
+      const xml = await zip.files[name].async("string");
+      const matches = xml.match(/<a:t[^>]*>([^<]*)<\/a:t>/g) ?? [];
+      const text = matches
+        .map((m) => m.replace(/<[^>]+>/g, "").trim())
+        .filter(Boolean)
+        .join(" ");
+      if (text) slideTexts.push(text);
+    }
+
+    return slideTexts.join("\n\n");
+  } catch {
+    return "";
+  }
+}

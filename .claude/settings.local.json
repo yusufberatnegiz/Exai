@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npx --version)",
+      "Bash(npm list -g pnpm)",
+      "Read(//c/Users/Yusuf Berat Negiz/AppData/Roaming/npm//**)",
+      "Bash(cmd.exe /c \"pnpm --version\")",
+      "Bash(echo \"exit: $?\")",
+      "Bash(powershell.exe -Command \"pnpm --version\")",
+      "Bash(npm install -g pnpm)",
+      "Bash(pnpm lint)",
+      "Bash(pnpm build)",
+      "Bash(pnpm add pdf-parse@1.1.1)"
+    ]
+  }
+}

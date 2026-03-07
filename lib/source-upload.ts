@@ -8,7 +8,12 @@
  */
 
 import { randomUUID } from "crypto";
-import { chunkText, extractTextFromPdf } from "@/lib/extract";
+import {
+  chunkText,
+  extractTextFromPdf,
+  extractTextFromDocx,
+  extractTextFromPptx,
+} from "@/lib/extract";
 
 // Using a broad type so this utility stays independent of the generated Supabase types
 type Supabase = ReturnType<typeof Object.create>;
@@ -92,13 +97,24 @@ async function runExtraction({
       mimeType ===
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     ) {
-      throw new Error("DOCX text extraction coming in the next update.");
+      const extracted = await extractTextFromDocx(content);
+      if (extracted.trim().length < 50) {
+        throw new Error("DOCX has no extractable text.");
+      }
+      text = extracted;
     } else if (
       mimeType === "application/vnd.ms-powerpoint" ||
       mimeType ===
         "application/vnd.openxmlformats-officedocument.presentationml.presentation"
     ) {
-      throw new Error("PPT/PPTX text extraction coming in the next update.");
+      if (mimeType === "application/vnd.ms-powerpoint") {
+        throw new Error("Legacy .ppt format is not supported. Please save as .pptx and re-upload.");
+      }
+      const extracted = await extractTextFromPptx(content);
+      if (extracted.trim().length < 50) {
+        throw new Error("PPTX has no extractable text (slides may be image-only).");
+      }
+      text = extracted;
     } else {
       throw new Error(`Unsupported file type: ${mimeType}`);
     }
@@ -163,7 +179,7 @@ export async function processSourceFile(
     .from("exam-uploads")
     .upload(storagePath, content, { contentType: mimeType });
   if (storageError) {
-    return `${file.name}: storage error — ${storageError.message}`;
+    return `${file.name}: storage error: ${storageError.message}`;
   }
 
   const { error: docError } = await supabase.from("documents").insert({
@@ -177,7 +193,7 @@ export async function processSourceFile(
   });
   if (docError) {
     await supabase.storage.from("exam-uploads").remove([storagePath]);
-    return `${file.name}: database error — ${docError.message}`;
+    return `${file.name}: database error: ${docError.message}`;
   }
 
   const jobId = randomUUID();
@@ -191,7 +207,7 @@ export async function processSourceFile(
     error: null,
   });
   if (jobError) {
-    return `${file.name}: job creation failed — ${jobError.message}`;
+    return `${file.name}: job creation failed: ${jobError.message}`;
   }
 
   await runExtraction({ supabase, documentId, userId, mimeType, content, jobId });

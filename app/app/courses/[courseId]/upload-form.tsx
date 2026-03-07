@@ -64,7 +64,7 @@ export default function SourceUploadForm({ courseId, action }: Props) {
           }
         />
         <p className="text-xs text-gray-400 mt-1.5">
-          PDF, DOCX, PPT, PPTX — max 10 MB each
+          PDF, DOCX, PPT, PPTX - max 10 MB each
         </p>
       </div>
 

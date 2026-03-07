@@ -36,20 +36,20 @@ export async function generateQuestions(
   formData: FormData
 ): Promise<GenerateState> {
   const courseId = formData.get("courseId") as string;
-  const examFile = formData.get("examFile") as File | null;
+  const examFiles = formData.getAll("examFiles") as File[];
   const pastedText = ((formData.get("pastedText") as string) ?? "").trim();
 
   if (!z.string().uuid().safeParse(courseId).success) {
     return { error: "Invalid course." };
   }
 
-  const hasExamFile = !!examFile && examFile.size > 0;
+  const validExamFiles = examFiles.filter((f) => f instanceof File && f.size > 0);
+  const hasFiles = validExamFiles.length > 0;
   const hasText = pastedText.length > 0;
 
-  if (!hasExamFile && !hasText) {
+  if (!hasFiles && !hasText) {
     return {
-      error:
-        "Provide a past exam PDF or paste exam text — at least one is required.",
+      error: "Provide a past exam file or paste exam text - at least one is required.",
     };
   }
 
@@ -96,30 +96,33 @@ export async function generateQuestions(
   }
 
   // ---------------------------------------------------------------------------
-  // 2. Extract exam context (style/structure reference — required)
+  // 2. Extract exam context from all provided files + pasted text
   // ---------------------------------------------------------------------------
 
-  let examContext = "";
+  let examContext = pastedText.slice(0, 4000);
+  const fileWarnings: string[] = [];
 
-  if (hasText) {
-    examContext = pastedText.slice(0, 4000);
-  } else if (hasExamFile && examFile) {
-    const mimeType = getSourceFileMimeType(examFile) ?? examFile.type;
-    if (mimeType !== "application/pdf") {
-      return {
-        error:
-          "Only PDF files are supported for exam upload. Paste the text instead.",
-      };
+  for (const file of validExamFiles) {
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    if (ext === "pdf") {
+      const buffer = await file.arrayBuffer();
+      const extracted = await extractTextFromPdf(buffer);
+      if (extracted.trim().length < 20) {
+        fileWarnings.push(`${file.name}: could not extract text (may be scanned). Paste the text instead.`);
+      } else {
+        examContext += "\n\n" + extracted.slice(0, 3000);
+      }
+    } else if (["jpg", "jpeg", "png"].includes(ext)) {
+      fileWarnings.push(`${file.name}: image files cannot be read as text. Paste the questions instead.`);
     }
-    const buffer = await examFile.arrayBuffer();
-    const extracted = await extractTextFromPdf(buffer);
-    if (extracted.trim().length < 20) {
-      return {
-        error:
-          "Could not extract text from the exam PDF — it may be scanned. Paste the text instead.",
-      };
-    }
-    examContext = extracted.slice(0, 4000);
+  }
+
+  // Cap total exam context
+  examContext = examContext.slice(0, 6000).trim();
+
+  if (!examContext) {
+    const warn = fileWarnings.length > 0 ? " " + fileWarnings.join(" ") : "";
+    return { error: "No readable exam content found." + warn };
   }
 
   // ---------------------------------------------------------------------------
@@ -135,7 +138,7 @@ export async function generateQuestions(
   // ---------------------------------------------------------------------------
 
   const questionSetId = randomUUID();
-  const title = `${course.title} — ${new Date().toLocaleDateString("en-GB")}`;
+  const title = `${course.title} - ${new Date().toLocaleDateString("en-GB")}`;
 
   const { error: qsError } = await supabase.from("question_sets").insert({
     id: questionSetId,
@@ -163,18 +166,18 @@ export async function generateQuestions(
           content: `You are generating university exam-style practice questions for a one-question-at-a-time study app.
 
 RULES:
-- Each question must test exactly ONE main concept — no multi-part questions.
+- Each question must test exactly ONE main concept - no multi-part questions.
 - Keep question_text short and concise (1–3 sentences max). Do not number or label questions.
 - Write solution_text as a clear, complete model answer (not a list of sub-answers).
 - Questions must be directly answerable from the provided material.
 - If a past exam is provided as style reference, match its question style and difficulty.
 
-QUESTION MIX — generate exactly 5 questions in this order:
-1. Definition question — "Define X" or "What is X?"
-2. Definition question — "Define X" or "What is X?"
-3. Explanation question — "Explain how/why X works"
-4. Explanation question — "Explain the difference between X and Y"
-5. Coding or application question — short code snippet or applied scenario (if material contains code; otherwise use another explanation question)
+QUESTION MIX - generate exactly 5 questions in this order:
+1. Definition question - "Define X" or "What is X?"
+2. Definition question - "Define X" or "What is X?"
+3. Explanation question - "Explain how/why X works"
+4. Explanation question - "Explain the difference between X and Y"
+5. Coding or application question - short code snippet or applied scenario (if material contains code; otherwise use another explanation question)
 
 Return EXACTLY 5 questions as a JSON object:
 {
