@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import SignOutButton from "./sign-out-button";
 import CreateCourseForm from "./create-course-form";
@@ -84,14 +85,22 @@ export default async function AppPage() {
           ) : (
             <div className="grid sm:grid-cols-2 gap-3">
               {courses.map((course) => (
-                <Card key={course.id}>
-                  <CardContent className="p-4">
-                    <p className="font-medium text-gray-900">{course.title}</p>
-                    <p className="text-xs text-gray-300 mt-2">
-                      {new Date(course.created_at).toLocaleDateString()}
-                    </p>
-                  </CardContent>
-                </Card>
+                <Link
+                  key={course.id}
+                  href={`/app/courses/${course.id}`}
+                  className="group block"
+                >
+                  <Card className="transition-colors group-hover:border-gray-300">
+                    <CardContent className="p-4">
+                      <p className="font-medium text-gray-900">
+                        {course.title}
+                      </p>
+                      <p className="text-xs text-gray-300 mt-2">
+                        {new Date(course.created_at).toLocaleDateString()}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </Link>
               ))}
             </div>
           )}
