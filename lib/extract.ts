@@ -82,7 +82,9 @@ export async function extractTextFromDocx(
   buffer: ArrayBuffer
 ): Promise<string> {
   try {
-    const mammoth = await import("mammoth");
+    const mod = await import("mammoth");
+    // CJS modules loaded via dynamic import expose exports under .default
+    const mammoth = (mod as ReturnType<typeof Object.create>).default ?? mod;
     const result = await mammoth.extractRawText({ arrayBuffer: buffer });
     return result.value ?? "";
   } catch {
