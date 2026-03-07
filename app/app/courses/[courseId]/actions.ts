@@ -8,6 +8,33 @@ import { chunkText, extractTextFromPdf } from "@/lib/extract";
 
 export type UploadState = { error: string } | { success: true } | null;
 
+function sanitizeFilename(name: string): string {
+  const turkishMap: Record<string, string> = {
+    ç: "c", Ç: "c", ğ: "g", Ğ: "g", ı: "i", İ: "i",
+    ö: "o", Ö: "o", ş: "s", Ş: "s", ü: "u", Ü: "u",
+  };
+  const lastDot = name.lastIndexOf(".");
+  const base = lastDot > 0 ? name.slice(0, lastDot) : name;
+  const ext = lastDot > 0 ? name.slice(lastDot) : "";
+
+  const sanitizedBase = base
+    .split("")
+    .map((c) => turkishMap[c] ?? c)
+    .join("")
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9._-]/g, "");
+
+  const sanitizedExt = ext
+    .split("")
+    .map((c) => turkishMap[c] ?? c)
+    .join("")
+    .toLowerCase()
+    .replace(/[^a-z0-9.]/g, "");
+
+  return (sanitizedBase || "file") + sanitizedExt;
+}
+
 const ALLOWED_MIME_TYPES = [
   "application/pdf",
   "image/png",
@@ -169,7 +196,7 @@ export async function uploadDocument(
   }
 
   const documentId = randomUUID();
-  const storagePath = `${user.id}/${courseId}/${documentId}/${filename}`;
+  const storagePath = `${user.id}/${courseId}/${documentId}/${sanitizeFilename(filename)}`;
 
   // 1. Upload to storage
   const { error: storageError } = await supabase.storage
