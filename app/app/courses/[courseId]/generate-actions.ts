@@ -107,8 +107,13 @@ export async function generateQuestions(
     if (ext === "pdf") {
       const buffer = await file.arrayBuffer();
       const extracted = await extractTextFromPdf(buffer);
-      if (extracted.trim().length < 20) {
-        fileWarnings.push(`${file.name}: could not extract text (may be scanned). Paste the text instead.`);
+      if (extracted.trim().length < 50) {
+        // Scanned PDF: no selectable text layer. Raw PDF bytes cannot be sent
+        // to the vision API. Fail clearly — consistent with source-upload handling.
+        fileWarnings.push(
+          `${file.name}: this PDF appears to be scanned (no selectable text). ` +
+          `Export each page as a .jpg or .png and upload those, or paste the exam text directly.`
+        );
       } else {
         examContext += "\n\n" + extracted.slice(0, 3000);
       }
