@@ -67,6 +67,14 @@ export default async function CourseDetailPage({
   // Weak-topic practice is unlocked when at least one topic has >= 2 attempts
   const hasWeakTopics = topicStats.some((t) => t.attempts >= 2);
 
+  // Progress dashboard stats
+  const totalAnswered = topicStats.reduce((s, t) => s + t.attempts, 0);
+  const totalCorrect = topicStats.reduce((s, t) => s + t.correct, 0);
+  const overallAccuracy =
+    totalAnswered > 0 ? Math.round((totalCorrect / totalAnswered) * 100) : null;
+  // Weakest 3 topics with at least 1 attempt (topicStats already sorted weakest first)
+  const weakestThree = topicStats.filter((t) => t.attempts >= 1).slice(0, 3);
+
   return (
     <div className="min-h-screen bg-white">
       <nav className="border-b border-gray-100">
@@ -150,7 +158,61 @@ export default async function CourseDetailPage({
           </div>
         </section>
 
-        {/* ── Section 2: Weak Topics ──────────────────────────────────── */}
+        {/* ── Section 2: Your Progress ────────────────────────────────── */}
+        <section className="space-y-6 pt-4 border-t border-gray-100">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Your Progress</h2>
+            <p className="text-sm text-gray-400 mt-0.5">
+              Overall performance across all practice sessions for this course.
+            </p>
+          </div>
+
+          {totalAnswered === 0 ? (
+            <p className="text-sm text-gray-400">
+              Complete a practice session to see your progress.
+            </p>
+          ) : (
+            <div className="rounded-xl border border-gray-100 divide-y divide-gray-100">
+              <div className="flex items-center justify-between px-4 py-3">
+                <span className="text-sm text-gray-600">Questions answered</span>
+                <span className="text-sm font-semibold text-gray-900 tabular-nums">
+                  {totalAnswered}
+                </span>
+              </div>
+              <div className="flex items-center justify-between px-4 py-3">
+                <span className="text-sm text-gray-600">Overall accuracy</span>
+                <span
+                  className={`text-sm font-semibold tabular-nums ${
+                    overallAccuracy !== null && overallAccuracy >= 80
+                      ? "text-green-600"
+                      : overallAccuracy !== null && overallAccuracy >= 50
+                      ? "text-amber-500"
+                      : "text-red-500"
+                  }`}
+                >
+                  {overallAccuracy !== null ? `${overallAccuracy}%` : "—"}
+                </span>
+              </div>
+              {weakestThree.length > 0 && (
+                <div className="px-4 py-3 space-y-1.5">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                    Weakest topics
+                  </p>
+                  {weakestThree.map((t) => (
+                    <div key={t.topic} className="flex items-center justify-between">
+                      <span className="text-sm text-gray-700 truncate">{t.topic}</span>
+                      <span className="text-xs text-gray-400 tabular-nums ml-4 shrink-0">
+                        {Math.round(t.accuracy * 100)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* ── Section 3: Weak Topics ──────────────────────────────────── */}
         <section className="space-y-6 pt-4 border-t border-gray-100">
           <div>
             <h2 className="text-base font-semibold text-gray-900">Weak Topics</h2>

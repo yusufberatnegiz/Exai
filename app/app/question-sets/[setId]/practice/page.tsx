@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import PracticeClient from "./practice-client";
 import { submitAttempt } from "./actions";
+import { generateWeakTopicQuestions } from "@/app/app/courses/[courseId]/generate-actions";
 
 export default async function PracticePage({
   params,
@@ -48,6 +49,7 @@ export default async function PracticePage({
       }}
       questions={questions}
       action={submitAttempt}
+      weakTopicAction={generateWeakTopicQuestions}
     />
   );
 }

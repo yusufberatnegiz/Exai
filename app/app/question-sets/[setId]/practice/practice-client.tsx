@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,10 +25,13 @@ type QuestionSet = {
   courseTitle: string;
 };
 
+type WeakTopicResult = { error: string } | { questionSetId: string } | null;
+
 type Props = {
   questionSet: QuestionSet;
   questions: Question[];
   action: (_prev: AttemptResult, formData: FormData) => Promise<AttemptResult>;
+  weakTopicAction: (courseId: string) => Promise<WeakTopicResult>;
 };
 
 const DIFFICULTY_STYLES: Record<string, string> = {
@@ -36,26 +40,18 @@ const DIFFICULTY_STYLES: Record<string, string> = {
   hard: "text-red-600 bg-red-50",
 };
 
-export default function PracticeClient({ questionSet, questions, action }: Props) {
+export default function PracticeClient({ questionSet, questions, action, weakTopicAction }: Props) {
   const total = questions.length;
+  const router = useRouter();
 
-  // Navigation: 0..total-1 = questions, total = completion screen
   const [index, setIndex] = useState(0);
-
-  // Per-question answer text (keyed by question id)
   const [answers, setAnswers] = useState<Record<string, string>>({});
-
-  // Questions whose answer has been saved to DB
   const [submittedIds, setSubmittedIds] = useState<Set<string>>(new Set());
-
-  // Questions whose solution is currently visible
   const [revealedIds, setRevealedIds] = useState<Set<string>>(new Set());
-
-  // Per-question submit error
   const [submitErrors, setSubmitErrors] = useState<Record<string, string>>({});
-
-  // Per-question grade result
   const [grades, setGrades] = useState<Record<string, GradeResult>>({});
+  const [reviewMode, setReviewMode] = useState(false);
+  const [weakTopicError, setWeakTopicError] = useState<string | null>(null);
 
   const [isPending, startTransition] = useTransition();
 
@@ -99,11 +95,8 @@ export default function PracticeClient({ questionSet, questions, action }: Props
   function toggleReveal(questionId: string) {
     setRevealedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(questionId)) {
-        next.delete(questionId);
-      } else {
-        next.add(questionId);
-      }
+      if (next.has(questionId)) next.delete(questionId);
+      else next.add(questionId);
       return next;
     });
   }
@@ -115,66 +108,237 @@ export default function PracticeClient({ questionSet, questions, action }: Props
     setRevealedIds(new Set());
     setSubmitErrors({});
     setGrades({});
+    setReviewMode(false);
+    setWeakTopicError(null);
   }
 
-  // ── Completion screen ────────────────────────────────────────────────────
+  function handleGenerateWeakTopics() {
+    setWeakTopicError(null);
+    startTransition(async () => {
+      const result = await weakTopicAction(questionSet.courseId);
+      if (result && "error" in result) {
+        setWeakTopicError(result.error);
+      } else if (result && "questionSetId" in result) {
+        router.push(`/app/question-sets/${result.questionSetId}/practice`);
+      }
+    });
+  }
+
+  // ── Completion screen ─────────────────────────────────────────────────────
 
   if (isComplete) {
-    const answeredCount = submittedIds.size;
-    const gradedCount = Object.keys(grades).length;
-    const correctCount = Object.values(grades).filter((g) => g.is_correct).length;
-    // Each question is worth (100 / total) pts; sum earned = sum(score_i) / total
-    const totalEarned =
-      gradedCount > 0
-        ? Object.values(grades).reduce((s, g) => s + g.score, 0) / total
-        : null;
+    // Score calculation
+    const gradedQuestions = questions.filter(
+      (q) => grades[q.id] && !grades[q.id].gradingFailed
+    );
+    const correctCount = gradedQuestions.filter((q) => grades[q.id].is_correct).length;
+    const scorePercent = total > 0 ? Math.round((correctCount / total) * 100) : null;
 
+    // Topic breakdown from graded questions only
+    const topicMap: Record<string, { total: number; correct: number }> = {};
+    for (const q of questions) {
+      const g = grades[q.id];
+      if (!g || g.gradingFailed) continue;
+      if (!topicMap[q.topic]) topicMap[q.topic] = { total: 0, correct: 0 };
+      topicMap[q.topic].total++;
+      if (g.is_correct) topicMap[q.topic].correct++;
+    }
+    const topicBreakdown = Object.entries(topicMap)
+      .map(([topic, { total: t, correct }]) => ({
+        topic,
+        total: t,
+        correct,
+        accuracy: correct / t,
+      }))
+      .sort((a, b) => b.accuracy - a.accuracy);
+
+    const strongTopics = topicBreakdown.filter((t) => t.accuracy >= 0.8);
+    const weakTopics = topicBreakdown.filter((t) => t.accuracy < 0.8);
+
+    // ── Review screen ─────────────────────────────────────────────────────
+    if (reviewMode) {
+      return (
+        <div className="min-h-screen bg-white flex flex-col">
+          <Nav questionSet={questionSet} />
+          <main className="max-w-2xl mx-auto w-full px-6 py-10 space-y-6">
+            <button
+              onClick={() => setReviewMode(false)}
+              className="text-sm text-gray-400 hover:text-gray-700 transition-colors"
+            >
+              ← Back to results
+            </button>
+
+            <h2 className="text-xl font-bold text-gray-900">Question Review</h2>
+
+            {questions.map((q, i) => {
+              const g = grades[q.id] ?? null;
+              const submittedAnswer = answers[q.id] ?? null;
+              const isSubmitted = submittedIds.has(q.id);
+
+              return (
+                <div
+                  key={q.id}
+                  className="rounded-xl border border-gray-100 p-5 space-y-3"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                      {q.topic}
+                    </p>
+                    <span className="text-xs text-gray-300 tabular-nums">Q{i + 1}</span>
+                  </div>
+
+                  <p className="text-sm font-medium text-gray-900 leading-relaxed">
+                    {q.question_text}
+                  </p>
+
+                  {isSubmitted && submittedAnswer ? (
+                    <div className="space-y-2">
+                      <div
+                        className={`rounded-lg px-3 py-2 text-sm ${
+                          g?.is_correct
+                            ? "bg-green-50 text-green-800 border border-green-100"
+                            : g
+                            ? "bg-red-50 text-red-800 border border-red-100"
+                            : "bg-gray-50 text-gray-700 border border-gray-100"
+                        }`}
+                      >
+                        <span className="font-medium">Your answer: </span>
+                        {submittedAnswer}
+                      </div>
+                      {g && !g.gradingFailed && g.feedback && (
+                        <p className="text-xs text-gray-500 leading-relaxed">{g.feedback}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">Not answered</p>
+                  )}
+
+                  <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2.5">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                      Solution
+                    </p>
+                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                      {q.solution_text}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+
+            <div className="pt-2">
+              <Button variant="outline" className="w-full" onClick={() => setReviewMode(false)}>
+                Back to Results
+              </Button>
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    // ── Results screen ────────────────────────────────────────────────────
     return (
       <div className="min-h-screen bg-white flex flex-col">
         <Nav questionSet={questionSet} />
         <main className="flex-1 flex items-center justify-center px-6 py-16">
-          <div className="max-w-md w-full text-center space-y-8">
-            <div className="space-y-3">
-              <p className="text-4xl font-bold text-gray-900">Done</p>
-              <p className="text-gray-500 text-sm">
-                Answered{" "}
-                <span className="font-semibold text-gray-800">
-                  {answeredCount} of {total}
-                </span>{" "}
-                {total === 1 ? "question" : "questions"}.
+          <div className="max-w-md w-full space-y-8">
+
+            {/* Score card */}
+            <div className="text-center space-y-1">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                Practice Complete
               </p>
-              {totalEarned !== null && (
-                <div className="flex items-center justify-center gap-4 text-sm">
-                  <span className="text-green-600 font-semibold">
-                    {correctCount} correct
-                  </span>
-                  <span className="text-gray-300">·</span>
-                  <span className="text-gray-500">
-                    Total{" "}
-                    <span className="font-semibold text-gray-800">
-                      {totalEarned.toFixed(1)} / 100 pts
-                    </span>
-                  </span>
-                </div>
+              {scorePercent !== null ? (
+                <>
+                  <p className="text-5xl font-bold text-gray-900 tabular-nums">
+                    {correctCount}
+                    <span className="text-2xl text-gray-400 font-normal"> / {total}</span>
+                  </p>
+                  <p className="text-lg text-gray-500">{scorePercent}%</p>
+                </>
+              ) : (
+                <p className="text-sm text-gray-400 mt-2">
+                  No graded answers yet.
+                </p>
               )}
             </div>
+
+            {/* Topic breakdown */}
+            {topicBreakdown.length > 0 && (
+              <div className="rounded-xl border border-gray-100 overflow-hidden divide-y divide-gray-100">
+                {strongTopics.length > 0 && (
+                  <div className="px-4 py-3 space-y-2">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                      Strong
+                    </p>
+                    {strongTopics.map((t) => (
+                      <div key={t.topic} className="flex items-center justify-between">
+                        <span className="text-sm text-green-600">✓ {t.topic}</span>
+                        <span className="text-xs text-gray-400 tabular-nums">
+                          {Math.round(t.accuracy * 100)}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {weakTopics.length > 0 && (
+                  <div className="px-4 py-3 space-y-2">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                      Needs improvement
+                    </p>
+                    {weakTopics.map((t) => (
+                      <div key={t.topic} className="flex items-center justify-between">
+                        <span className="text-sm text-amber-600">⚠ {t.topic}</span>
+                        <span className="text-xs text-gray-400 tabular-nums">
+                          {Math.round(t.accuracy * 100)}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Action buttons */}
             <div className="flex flex-col gap-3">
-              <Button onClick={handleRestart} className="w-full">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setReviewMode(true)}
+              >
+                Review Questions
+              </Button>
+
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleGenerateWeakTopics}
+                disabled={isPending}
+              >
+                {isPending ? "Generating..." : "Practice Weak Topics"}
+              </Button>
+
+              {weakTopicError && (
+                <p className="text-xs text-red-500">{weakTopicError}</p>
+              )}
+
+              <Button variant="outline" className="w-full" onClick={handleRestart}>
                 Restart Practice
               </Button>
-              <Button variant="outline" className="w-full" asChild>
+
+              <Button className="w-full" asChild>
                 <Link href={`/app/courses/${questionSet.courseId}`}>
                   Back to Course
                 </Link>
               </Button>
             </div>
+
           </div>
         </main>
       </div>
     );
   }
 
-  // ── Practice screen ──────────────────────────────────────────────────────
+  // ── Practice screen ───────────────────────────────────────────────────────
 
   const q = question!;
   const answer = answers[q.id] ?? "";
@@ -302,7 +466,7 @@ export default function PracticeClient({ questionSet, questions, action }: Props
   );
 }
 
-// ── Grade feedback ───────────────────────────────────────────────────────────
+// ── Grade feedback ────────────────────────────────────────────────────────────
 
 function GradeFeedback({ grade, total }: { grade: GradeResult; total: number }) {
   if (grade.gradingFailed) {
@@ -315,7 +479,6 @@ function GradeFeedback({ grade, total }: { grade: GradeResult; total: number }) 
     );
   }
 
-  // Each question is worth (100 / total) pts
   const maxPts = 100 / total;
   const earnedPts = (grade.score / 100) * maxPts;
 
@@ -339,7 +502,7 @@ function GradeFeedback({ grade, total }: { grade: GradeResult; total: number }) 
   );
 }
 
-// ── Answer input — renders differently per question type ────────────────────
+// ── Answer input — renders differently per question type ──────────────────────
 
 type AnswerInputProps = {
   question: Question;
@@ -409,7 +572,7 @@ function AnswerInput({ question, answer, isSubmitted, isPending, onChange }: Ans
     return <CodingTextarea value={answer} onChange={onChange} disabled={disabled} />;
   }
 
-  // Open (default / fallback for malformed mcq/tf)
+  // Open (default)
   return (
     <Textarea
       placeholder="Write your answer here..."
@@ -421,7 +584,7 @@ function AnswerInput({ question, answer, isSubmitted, isPending, onChange }: Ans
   );
 }
 
-// ── Coding textarea ──────────────────────────────────────────────────────────
+// ── Coding textarea ───────────────────────────────────────────────────────────
 
 function CodingTextarea({
   value,
@@ -465,7 +628,7 @@ function CodingTextarea({
   );
 }
 
-// ── Shared nav ─────────────────────────────────────────────────────────────
+// ── Shared nav ────────────────────────────────────────────────────────────────
 
 function Nav({ questionSet }: { questionSet: QuestionSet }) {
   return (
