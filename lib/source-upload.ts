@@ -93,15 +93,15 @@ async function runExtraction({
     if (mimeType === "application/pdf") {
       const extracted = await extractTextFromPdf(content);
       if (extracted.trim().length < 50) {
-        // Scanned PDF - fall back to vision OCR on the raw buffer
-        const ocr = await extractTextWithOCR(content, "image/jpeg");
-        if (ocr.trim().length < 20) {
-          throw new Error("PDF has no selectable text and OCR found no content.");
-        }
-        text = ocr;
-      } else {
-        text = extracted;
+        // Scanned PDF: page-rendering to images is not yet implemented.
+        // Passing raw PDF bytes to the vision API is invalid — PDF binary is
+        // not a JPEG/PNG. Fail clearly instead of silently sending garbage.
+        throw new Error(
+          "This PDF appears to be scanned (no selectable text). " +
+          "Please export it to images (.jpg/.png) and upload those instead."
+        );
       }
+      text = extracted;
     } else if (mimeType === "image/jpeg" || mimeType === "image/png") {
       const ocr = await extractTextWithOCR(content, mimeType);
       if (ocr.trim().length < 20) {
@@ -240,6 +240,9 @@ export async function processSourceFile(
     error: null,
   });
   if (jobError) {
+    // Roll back: storage object and documents row are now orphaned without a job.
+    await supabase.storage.from("exam-uploads").remove([storagePath]);
+    await supabase.from("documents").delete().eq("id", documentId);
     return `${file.name}: job creation failed: ${jobError.message}`;
   }
 
