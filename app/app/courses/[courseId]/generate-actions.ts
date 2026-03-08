@@ -6,7 +6,6 @@ import { revalidatePath } from "next/cache";
 import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
 import { extractTextFromPdf, extractTextWithOCR } from "@/lib/extract";
-import { getSourceFileMimeType } from "@/lib/source-upload";
 
 export type GenerateState = { error: string } | { success: true } | null;
 
@@ -16,7 +15,8 @@ export type GenerateState = { error: string } | { success: true } | null;
 
 const QuestionSchema = z.object({
   question_text: z.string().min(1),
-  question_type: z.literal("open"),
+  question_type: z.enum(["open", "tf", "mcq", "coding"]),
+  choices: z.array(z.string()).nullable().optional(),
   solution_text: z.string().min(1),
   topic: z.string().min(1),
   difficulty: z.enum(["easy", "medium", "hard"]),
@@ -26,6 +26,129 @@ const QuestionSchema = z.object({
 const AIResponseSchema = z.object({
   questions: z.array(QuestionSchema).min(1).max(10),
 });
+
+// ---------------------------------------------------------------------------
+// Instruction parser — extracts explicit type counts from free-text instructions
+// ---------------------------------------------------------------------------
+
+type TypeCounts = { total: number; open: number; tf: number; mcq: number; coding: number };
+
+function parseTypeCounts(instructions: string, fallbackTotal: number): TypeCounts | null {
+  const s = instructions.toLowerCase();
+
+  const get = (pattern: RegExp) => {
+    const m = s.match(pattern);
+    return m ? Math.max(0, parseInt(m[1])) : 0;
+  };
+
+  const tf     = get(/(\d+)\s*(?:tf\b|true[\s\-/]?false)/);
+  const mcq    = get(/(\d+)\s*(?:mcq\b|multiple[\s\-]?choice)/);
+  const coding = get(/(\d+)\s*(?:coding\b|code\b)/);
+  const open   = get(/(\d+)\s*(?:open\b|explanation\b|definition\b)/);
+
+  const sum = tf + mcq + coding + open;
+  if (sum === 0) return null; // no explicit breakdown found
+
+  const totalMatch = s.match(/(\d+)\s*questions?\b/);
+  const total = totalMatch ? parseInt(totalMatch[1]) : sum;
+
+  return { total, open, tf, mcq, coding };
+}
+
+// ---------------------------------------------------------------------------
+// System prompt builder
+// ---------------------------------------------------------------------------
+
+function buildSystemPrompt(total: number, instructions: string, counts: TypeCounts | null): string {
+  const typeDefinitions = `QUESTION TYPES:
+- "open": Free-text answer (definitions, explanations). choices must be null.
+- "tf": True/False. question_text is a declarative STATEMENT. choices must be ["True", "False"]. solution_text begins with "True." or "False." and explains why.
+- "mcq": Multiple choice. choices must be exactly 4 strings (one correct, three plausible distractors). solution_text names the correct choice and explains why.
+- "coding": Student must write code (implement, complete, or declare). choices must be null.`;
+
+  const schema = `Return a JSON object:
+{
+  "questions": [
+    {
+      "question_text": "...",
+      "question_type": "open" | "tf" | "mcq" | "coding",
+      "choices": null | ["True", "False"] | ["A", "B", "C", "D"],
+      "solution_text": "...",
+      "topic": "...",
+      "difficulty": "easy" | "medium" | "hard",
+      "source_refs": []
+    }
+  ]
+}`;
+
+  if (counts) {
+    const breakdown = [
+      counts.open   > 0 ? `  - ${counts.open} open/explanation` : "",
+      counts.tf     > 0 ? `  - ${counts.tf} true/false` : "",
+      counts.mcq    > 0 ? `  - ${counts.mcq} multiple choice` : "",
+      counts.coding > 0 ? `  - ${counts.coding} coding` : "",
+    ].filter(Boolean).join("\n");
+
+    const extra = instructions ? `\nStyle/topic context: ${instructions}` : "";
+
+    return `You are generating university exam-style practice questions for a one-question-at-a-time study app.
+
+Generate EXACTLY ${counts.total} questions with this EXACT type breakdown — do not deviate:
+${breakdown}${extra}
+
+RULES:
+- Each question tests exactly ONE concept. No multi-part questions.
+- question_text must be concise (1–3 sentences). Do not number or label questions.
+- solution_text must be a complete, clear model answer.
+- Questions must be directly answerable from the provided material.
+
+${typeDefinitions}
+
+${schema}`;
+  }
+
+  // No explicit breakdown — free choice of types
+  const countLine = instructions
+    ? `Follow the user's instructions — including question count and any style preferences.`
+    : `Generate EXACTLY ${total} question${total !== 1 ? "s" : ""}.`;
+  const instrBlock = instructions ? `\nUser instructions: ${instructions}` : "";
+
+  return `You are generating university exam-style practice questions for a one-question-at-a-time study app.
+
+${countLine}${instrBlock}
+
+RULES:
+- Each question tests exactly ONE concept. No multi-part questions.
+- question_text must be concise (1–3 sentences). Do not number or label questions.
+- solution_text must be a complete, clear model answer.
+- Questions must be directly answerable from the provided material.
+- Choose question types naturally based on the material and any user instructions.
+
+${typeDefinitions}
+
+${schema}`;
+}
+
+// ---------------------------------------------------------------------------
+// Post-AI count validation
+// ---------------------------------------------------------------------------
+
+function validateCounts(
+  questions: z.infer<typeof QuestionSchema>[],
+  counts: TypeCounts
+): string | null {
+  if (questions.length !== counts.total) {
+    return `Expected ${counts.total} questions but AI generated ${questions.length}. Please try again.`;
+  }
+  const got = { open: 0, tf: 0, mcq: 0, coding: 0 };
+  for (const q of questions) got[q.question_type as keyof typeof got]++;
+
+  if (got.open   !== counts.open)   return `Expected ${counts.open} open question(s) but got ${got.open}. Please try again.`;
+  if (got.tf     !== counts.tf)     return `Expected ${counts.tf} true/false question(s) but got ${got.tf}. Please try again.`;
+  if (got.mcq    !== counts.mcq)    return `Expected ${counts.mcq} MCQ question(s) but got ${got.mcq}. Please try again.`;
+  if (got.coding !== counts.coding) return `Expected ${counts.coding} coding question(s) but got ${got.coding}. Please try again.`;
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // Server action — called from GenerateForm
@@ -39,19 +162,20 @@ export async function generateQuestions(
   const examFiles = formData.getAll("examFiles") as File[];
   const pastedText = ((formData.get("pastedText") as string) ?? "").trim();
   const instructions = ((formData.get("instructions") as string) ?? "").trim().slice(0, 500);
+  const total = Math.min(10, Math.max(1, parseInt(formData.get("total") as string) || 5));
+
+  // Parse explicit type counts from instructions (e.g. "2 tf 2 mcq 1 coding 1 open")
+  const parsedCounts = parseTypeCounts(instructions, total);
+  const effectiveTotal = parsedCounts ? parsedCounts.total : total;
 
   if (!z.string().uuid().safeParse(courseId).success) {
     return { error: "Invalid course." };
   }
 
   const validExamFiles = examFiles.filter((f) => f instanceof File && f.size > 0);
-  const hasFiles = validExamFiles.length > 0;
-  const hasText = pastedText.length > 0;
 
-  if (!hasFiles && !hasText) {
-    return {
-      error: "Provide a past exam file or paste exam text - at least one is required.",
-    };
+  if (validExamFiles.length === 0 && !pastedText) {
+    return { error: "Provide a past exam file or paste exam text — at least one is required." };
   }
 
   const supabase = await createClient();
@@ -97,7 +221,7 @@ export async function generateQuestions(
   }
 
   // ---------------------------------------------------------------------------
-  // 2. Extract exam context from all provided files + pasted text
+  // 2. Extract exam context from provided files + pasted text
   // ---------------------------------------------------------------------------
 
   let examContext = pastedText.slice(0, 4000);
@@ -109,11 +233,9 @@ export async function generateQuestions(
       const buffer = await file.arrayBuffer();
       const extracted = await extractTextFromPdf(buffer);
       if (extracted.trim().length < 50) {
-        // Scanned PDF: no selectable text layer. Raw PDF bytes cannot be sent
-        // to the vision API. Fail clearly — consistent with source-upload handling.
         fileWarnings.push(
           `${file.name}: this PDF appears to be scanned (no selectable text). ` +
-          `Export each page as a .jpg or .png and upload those, or paste the exam text directly.`
+            `Export each page as a .jpg or .png and upload those, or paste the exam text directly.`
         );
       } else {
         examContext += "\n\n" + extracted.slice(0, 3000);
@@ -121,16 +243,15 @@ export async function generateQuestions(
     } else if (["jpg", "jpeg", "png"].includes(ext)) {
       const mimeType = ext === "png" ? "image/png" : "image/jpeg";
       const buffer = await file.arrayBuffer();
-      const ocr = await extractTextWithOCR(buffer, mimeType);
-      if (ocr.trim().length < 20) {
+      const text = await extractTextWithOCR(buffer, mimeType);
+      if (text.trim().length < 20) {
         fileWarnings.push(`${file.name}: OCR found no readable text. Paste the questions instead.`);
       } else {
-        examContext += "\n\n" + ocr.slice(0, 3000);
+        examContext += "\n\n" + text.slice(0, 3000);
       }
     }
   }
 
-  // Cap total exam context
   examContext = examContext.slice(0, 6000).trim();
 
   if (!examContext) {
@@ -142,16 +263,12 @@ export async function generateQuestions(
   // 3. Build AI user message
   // ---------------------------------------------------------------------------
 
-  const instructionsLine = instructions
-    ? `\n\nAdditional instructions: ${instructions}`
-    : "";
-
   const userMessage = knowledgeBase
-    ? `## Course Material (Knowledge Base)\n${knowledgeBase.trim()}\n\n## Past Exam (Style Reference)\n${examContext.trim()}\n\nGenerate 5 questions based on the course material. Match the style and difficulty of the past exam.${instructionsLine}`
-    : `## Source Material\n${examContext.trim()}\n\nGenerate 5 exam-style questions from this material.${instructionsLine}`;
+    ? `## Course Material (Knowledge Base)\n${knowledgeBase.trim()}\n\n## Past Exam (Style Reference)\n${examContext.trim()}\n\nGenerate exactly ${effectiveTotal} questions based on the course material. Match the style and difficulty of the past exam.`
+    : `## Source Material\n${examContext.trim()}\n\nGenerate exactly ${effectiveTotal} exam-style questions from this material.`;
 
   // ---------------------------------------------------------------------------
-  // 4. Create question_set row (roll back on AI failure)
+  // 4. Create question_set row (rolled back on AI failure)
   // ---------------------------------------------------------------------------
 
   const questionSetId = randomUUID();
@@ -166,7 +283,7 @@ export async function generateQuestions(
   if (qsError) return { error: `Could not create question set: ${qsError.message}` };
 
   // ---------------------------------------------------------------------------
-  // 5. Call OpenAI server-side
+  // 5. Call OpenAI
   // ---------------------------------------------------------------------------
 
   const openai = new OpenAI({ apiKey: process.env.AI_API_KEY });
@@ -178,48 +295,19 @@ export async function generateQuestions(
       temperature: 0.7,
       response_format: { type: "json_object" },
       messages: [
-        {
-          role: "system",
-          content: `You are generating university exam-style practice questions for a one-question-at-a-time study app.
-
-RULES:
-- Each question must test exactly ONE main concept - no multi-part questions.
-- Keep question_text short and concise (1–3 sentences max). Do not number or label questions.
-- Write solution_text as a clear, complete model answer (not a list of sub-answers).
-- Questions must be directly answerable from the provided material.
-- If a past exam is provided as style reference, match its question style and difficulty.
-
-QUESTION MIX - generate exactly 5 questions in this order:
-1. Definition question - "Define X" or "What is X?"
-2. Definition question - "Define X" or "What is X?"
-3. Explanation question - "Explain how/why X works"
-4. Explanation question - "Explain the difference between X and Y"
-5. Coding or application question - short code snippet or applied scenario (if material contains code; otherwise use another explanation question)
-
-Return EXACTLY 5 questions as a JSON object:
-{
-  "questions": [
-    {
-      "question_text": "Concise question text",
-      "question_type": "open",
-      "solution_text": "Complete model answer",
-      "topic": "Topic or concept name",
-      "difficulty": "easy" | "medium" | "hard",
-      "source_refs": []
-    }
-  ]
-}`,
-        },
-        {
-          role: "user",
-          content: userMessage,
-        },
+        { role: "system", content: buildSystemPrompt(total, instructions, parsedCounts) },
+        { role: "user", content: userMessage },
       ],
     });
 
     const raw = completion.choices[0]?.message?.content ?? "";
-    const json = JSON.parse(raw);
-    parsed = AIResponseSchema.parse(json);
+    parsed = AIResponseSchema.parse(JSON.parse(raw));
+
+    // If instructions specified an exact breakdown, validate strictly
+    if (parsedCounts) {
+      const err = validateCounts(parsed.questions, parsedCounts);
+      if (err) throw new Error(err);
+    }
   } catch (err) {
     await supabase.from("question_sets").delete().eq("id", questionSetId);
     const msg = err instanceof Error ? err.message : "Unknown error";
@@ -237,6 +325,7 @@ Return EXACTLY 5 questions as a JSON object:
       index_in_set: i,
       question_text: q.question_text,
       question_type: q.question_type,
+      choices: q.choices?.length ? q.choices : null,
       solution_text: q.solution_text,
       topic: q.topic,
       difficulty: q.difficulty,

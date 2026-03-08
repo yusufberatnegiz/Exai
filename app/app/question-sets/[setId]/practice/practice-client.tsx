@@ -4,11 +4,13 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { AttemptResult } from "./actions";
+import type { AttemptResult, GradeResult } from "./actions";
 
 type Question = {
   id: string;
   question_text: string;
+  question_type: string;
+  choices: string[] | null;
   solution_text: string;
   topic: string;
   difficulty: string;
@@ -52,6 +54,9 @@ export default function PracticeClient({ questionSet, questions, action }: Props
   // Per-question submit error
   const [submitErrors, setSubmitErrors] = useState<Record<string, string>>({});
 
+  // Per-question grade result
+  const [grades, setGrades] = useState<Record<string, GradeResult>>({});
+
   const [isPending, startTransition] = useTransition();
 
   const isComplete = index >= total;
@@ -79,8 +84,9 @@ export default function PracticeClient({ questionSet, questions, action }: Props
 
       if (result && "error" in result) {
         setSubmitErrors((prev) => ({ ...prev, [questionId]: result.error }));
-      } else {
+      } else if (result && "grade" in result) {
         setSubmittedIds((prev) => new Set([...prev, questionId]));
+        setGrades((prev) => ({ ...prev, [questionId]: result.grade }));
         setSubmitErrors((prev) => {
           const next = { ...prev };
           delete next[questionId];
@@ -108,26 +114,49 @@ export default function PracticeClient({ questionSet, questions, action }: Props
     setSubmittedIds(new Set());
     setRevealedIds(new Set());
     setSubmitErrors({});
+    setGrades({});
   }
 
   // ── Completion screen ────────────────────────────────────────────────────
 
   if (isComplete) {
     const answeredCount = submittedIds.size;
+    const gradedCount = Object.keys(grades).length;
+    const correctCount = Object.values(grades).filter((g) => g.is_correct).length;
+    // Each question is worth (100 / total) pts; sum earned = sum(score_i) / total
+    const totalEarned =
+      gradedCount > 0
+        ? Object.values(grades).reduce((s, g) => s + g.score, 0) / total
+        : null;
+
     return (
       <div className="min-h-screen bg-white flex flex-col">
         <Nav questionSet={questionSet} />
         <main className="flex-1 flex items-center justify-center px-6 py-16">
           <div className="max-w-md w-full text-center space-y-8">
-            <div className="space-y-2">
+            <div className="space-y-3">
               <p className="text-4xl font-bold text-gray-900">Done</p>
               <p className="text-gray-500 text-sm">
-                You answered{" "}
+                Answered{" "}
                 <span className="font-semibold text-gray-800">
                   {answeredCount} of {total}
                 </span>{" "}
                 {total === 1 ? "question" : "questions"}.
               </p>
+              {totalEarned !== null && (
+                <div className="flex items-center justify-center gap-4 text-sm">
+                  <span className="text-green-600 font-semibold">
+                    {correctCount} correct
+                  </span>
+                  <span className="text-gray-300">·</span>
+                  <span className="text-gray-500">
+                    Total{" "}
+                    <span className="font-semibold text-gray-800">
+                      {totalEarned.toFixed(1)} / 100 pts
+                    </span>
+                  </span>
+                </div>
+              )}
             </div>
             <div className="flex flex-col gap-3">
               <Button onClick={handleRestart} className="w-full">
@@ -152,7 +181,9 @@ export default function PracticeClient({ questionSet, questions, action }: Props
   const isSubmitted = submittedIds.has(q.id);
   const isRevealed = revealedIds.has(q.id);
   const submitError = submitErrors[q.id];
+  const grade = grades[q.id] ?? null;
   const difficultyStyle = DIFFICULTY_STYLES[q.difficulty] ?? "text-gray-500 bg-gray-50";
+  const needsAiGrade = q.question_type === "open" || q.question_type === "coding";
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
@@ -191,12 +222,12 @@ export default function PracticeClient({ questionSet, questions, action }: Props
 
           {/* Answer area */}
           <div className="space-y-3">
-            <Textarea
-              placeholder="Write your answer here..."
-              value={answer}
-              onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-              disabled={isSubmitted || isPending}
-              className="min-h-[140px] text-sm resize-none"
+            <AnswerInput
+              question={q}
+              answer={answer}
+              isSubmitted={isSubmitted}
+              isPending={isPending}
+              onChange={(val) => handleAnswerChange(q.id, val)}
             />
 
             {submitError && (
@@ -209,7 +240,9 @@ export default function PracticeClient({ questionSet, questions, action }: Props
                 disabled={isSubmitted || isPending || !answer.trim()}
                 className="w-28"
               >
-                {isPending ? "Saving..." : isSubmitted ? "Saved" : "Submit"}
+                {isPending
+                  ? needsAiGrade ? "Grading..." : "Saving..."
+                  : isSubmitted ? "Submitted" : "Submit"}
               </Button>
 
               <Button
@@ -220,6 +253,11 @@ export default function PracticeClient({ questionSet, questions, action }: Props
               </Button>
             </div>
           </div>
+
+          {/* Grade feedback */}
+          {grade && (
+            <GradeFeedback grade={grade} total={total} />
+          )}
 
           {/* Solution */}
           {isRevealed && (
@@ -261,6 +299,169 @@ export default function PracticeClient({ questionSet, questions, action }: Props
         </div>
       </main>
     </div>
+  );
+}
+
+// ── Grade feedback ───────────────────────────────────────────────────────────
+
+function GradeFeedback({ grade, total }: { grade: GradeResult; total: number }) {
+  if (grade.gradingFailed) {
+    return (
+      <div className="rounded-xl border border-gray-100 bg-gray-50 px-5 py-4">
+        <p className="text-sm text-gray-500">
+          Answer saved, but grading is temporarily unavailable.
+        </p>
+      </div>
+    );
+  }
+
+  // Each question is worth (100 / total) pts
+  const maxPts = 100 / total;
+  const earnedPts = (grade.score / 100) * maxPts;
+
+  const isCorrect = grade.is_correct;
+  const containerClass = isCorrect ? "border-green-100 bg-green-50" : "border-red-100 bg-red-50";
+  const labelClass = isCorrect ? "text-green-700" : "text-red-600";
+  const label = isCorrect ? "✓ Correct" : "✗ Incorrect";
+
+  return (
+    <div className={`rounded-xl border px-5 py-4 space-y-1.5 ${containerClass}`}>
+      <div className="flex items-center gap-2">
+        <span className={`text-sm font-semibold ${labelClass}`}>{label}</span>
+        <span className="text-xs text-gray-400 tabular-nums">
+          {earnedPts.toFixed(1)} / {maxPts.toFixed(1)} pts
+        </span>
+      </div>
+      {grade.feedback && (
+        <p className="text-sm text-gray-700 leading-relaxed">{grade.feedback}</p>
+      )}
+    </div>
+  );
+}
+
+// ── Answer input — renders differently per question type ────────────────────
+
+type AnswerInputProps = {
+  question: Question;
+  answer: string;
+  isSubmitted: boolean;
+  isPending: boolean;
+  onChange: (val: string) => void;
+};
+
+function AnswerInput({ question, answer, isSubmitted, isPending, onChange }: AnswerInputProps) {
+  const disabled = isSubmitted || isPending;
+
+  // True/False
+  if (question.question_type === "tf") {
+    const tfChoices = question.choices?.length === 2 ? question.choices : ["True", "False"];
+    return (
+      <div className="flex gap-3">
+        {tfChoices.map((opt) => (
+          <button
+            key={opt}
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(opt)}
+            className={`flex-1 py-3 rounded-xl text-sm font-medium border transition-colors
+              ${answer === opt
+                ? "bg-gray-900 text-white border-gray-900"
+                : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+              }
+              disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            {opt}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  // Multiple choice
+  if (question.question_type === "mcq" && question.choices && question.choices.length > 0) {
+    return (
+      <div className="space-y-2">
+        {question.choices.map((opt, i) => (
+          <button
+            key={i}
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(opt)}
+            className={`w-full text-left px-4 py-3 rounded-xl text-sm border transition-colors
+              ${answer === opt
+                ? "bg-gray-900 text-white border-gray-900"
+                : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+              }
+              disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            <span className="font-semibold mr-2 opacity-60">
+              {String.fromCharCode(65 + i)}.
+            </span>
+            {opt}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  // Coding
+  if (question.question_type === "coding") {
+    return <CodingTextarea value={answer} onChange={onChange} disabled={disabled} />;
+  }
+
+  // Open (default / fallback for malformed mcq/tf)
+  return (
+    <Textarea
+      placeholder="Write your answer here..."
+      value={answer}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      className="min-h-[140px] text-sm resize-none"
+    />
+  );
+}
+
+// ── Coding textarea ──────────────────────────────────────────────────────────
+
+function CodingTextarea({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+}) {
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const el = e.currentTarget;
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      const next = value.substring(0, start) + "  " + value.substring(end);
+      onChange(next);
+      requestAnimationFrame(() => {
+        el.selectionStart = el.selectionEnd = start + 2;
+      });
+    }
+  }
+
+  return (
+    <textarea
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={handleKeyDown}
+      disabled={disabled}
+      spellCheck={false}
+      autoCorrect="off"
+      autoCapitalize="none"
+      autoComplete="off"
+      placeholder="// Write your code here..."
+      className="w-full min-h-[220px] font-mono text-sm bg-gray-950 text-gray-100
+        border border-gray-700 rounded-xl p-4 resize-none leading-relaxed
+        placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-gray-600
+        disabled:opacity-50 disabled:cursor-not-allowed"
+    />
   );
 }
 

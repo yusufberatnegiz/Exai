@@ -27,7 +27,7 @@ export default async function PracticePage({
 
   const { data: questions } = await supabase
     .from("questions")
-    .select("id, question_text, solution_text, topic, difficulty, index_in_set")
+    .select("id, question_text, question_type, choices, solution_text, topic, difficulty, index_in_set")
     .eq("question_set_id", setId)
     .order("index_in_set", { ascending: true });
 
