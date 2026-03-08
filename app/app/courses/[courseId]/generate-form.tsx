@@ -94,6 +94,27 @@ export default function GenerateForm({ courseId, action }: Props) {
         />
       </div>
 
+      {/* Divider */}
+      <div className="flex items-center gap-3 text-xs text-gray-300">
+        <div className="flex-1 h-px bg-gray-100" />
+        instructions
+        <div className="flex-1 h-px bg-gray-100" />
+      </div>
+
+      {/* Custom instructions */}
+      <div>
+        <label className="text-xs font-medium text-gray-500 block mb-1.5">
+          Question set instructions{" "}
+          <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <Textarea
+          name="instructions"
+          placeholder="e.g. Focus on dynamic programming. Make questions harder. Include a proof question."
+          disabled={isPending}
+          rows={3}
+        />
+      </div>
+
       <p className="text-xs text-gray-400">
         Provide at least one file or paste text. Your uploaded course materials
         are used as the knowledge base.

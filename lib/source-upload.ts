@@ -10,6 +10,7 @@
 import { randomUUID } from "crypto";
 import {
   chunkText,
+  sanitizeExtractedText,
   extractTextFromPdf,
   extractTextFromDocx,
   extractTextFromPptx,
@@ -149,7 +150,7 @@ async function runExtraction({
       throw new Error(`Unsupported file type: ${mimeType}`);
     }
 
-    const chunks = chunkText(text);
+    const chunks = chunkText(sanitizeExtractedText(text));
     if (chunks.length > 0) {
       const { error: chunksError } = await supabase
         .from("document_chunks")

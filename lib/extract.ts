@@ -9,6 +9,18 @@
  */
 
 /**
+ * Remove characters that PostgreSQL's JSON parser rejects.
+ * Specifically: null bytes (\u0000) and ASCII control chars except \t and \n.
+ * pdf-parse sometimes produces null bytes from PDFs with non-standard encoding.
+ */
+export function sanitizeExtractedText(text: string): string {
+  return text
+    .replace(/\u0000/g, "")
+    // ASCII control chars 0x01-0x08, 0x0B-0x0C, 0x0E-0x1F (keep \t=0x09 \n=0x0A)
+    .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+}
+
+/**
  * Split text into sequential chunks of roughly `maxChars` characters.
  * Tries to split at paragraph boundaries first; falls back to sentence
  * boundaries when a single paragraph exceeds `maxChars`.

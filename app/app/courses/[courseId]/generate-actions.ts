@@ -38,6 +38,7 @@ export async function generateQuestions(
   const courseId = formData.get("courseId") as string;
   const examFiles = formData.getAll("examFiles") as File[];
   const pastedText = ((formData.get("pastedText") as string) ?? "").trim();
+  const instructions = ((formData.get("instructions") as string) ?? "").trim().slice(0, 500);
 
   if (!z.string().uuid().safeParse(courseId).success) {
     return { error: "Invalid course." };
@@ -141,9 +142,13 @@ export async function generateQuestions(
   // 3. Build AI user message
   // ---------------------------------------------------------------------------
 
+  const instructionsLine = instructions
+    ? `\n\nAdditional instructions: ${instructions}`
+    : "";
+
   const userMessage = knowledgeBase
-    ? `## Course Material (Knowledge Base)\n${knowledgeBase.trim()}\n\n## Past Exam (Style Reference)\n${examContext.trim()}\n\nGenerate 5 questions based on the course material. Match the style and difficulty of the past exam.`
-    : `## Source Material\n${examContext.trim()}\n\nGenerate 5 exam-style questions from this material.`;
+    ? `## Course Material (Knowledge Base)\n${knowledgeBase.trim()}\n\n## Past Exam (Style Reference)\n${examContext.trim()}\n\nGenerate 5 questions based on the course material. Match the style and difficulty of the past exam.${instructionsLine}`
+    : `## Source Material\n${examContext.trim()}\n\nGenerate 5 exam-style questions from this material.${instructionsLine}`;
 
   // ---------------------------------------------------------------------------
   // 4. Create question_set row (roll back on AI failure)
