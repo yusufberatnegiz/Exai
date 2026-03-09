@@ -5,7 +5,15 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useState, useEffect } from "react";
 
-export default function Sidebar({ userEmail }: { userEmail: string | null }) {
+type Course = { id: string; title: string };
+
+export default function Sidebar({
+  userEmail,
+  courses,
+}: {
+  userEmail: string | null;
+  courses: Course[];
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -125,6 +133,55 @@ export default function Sidebar({ userEmail }: { userEmail: string | null }) {
           );
         })}
       </nav>
+
+      {/* Courses */}
+      {courses.length > 0 && (
+        <div className={`border-t border-gray-100 shrink-0 py-3 ${collapsed ? "px-2" : "px-3"}`}>
+          {!collapsed && (
+            <div className="px-3 pb-1.5">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                Courses
+              </p>
+            </div>
+          )}
+          <div className="space-y-0.5">
+            {courses.map((course) => {
+              const active = pathname.startsWith(`/app/courses/${course.id}`);
+              if (collapsed) {
+                return (
+                  <Link
+                    key={course.id}
+                    href={`/app/courses/${course.id}`}
+                    title={course.title}
+                    className={`flex items-center justify-center w-8 h-8 mx-auto rounded-lg transition-colors ${
+                      active
+                        ? "bg-blue-50 text-blue-700"
+                        : "text-gray-400 hover:bg-gray-50 hover:text-gray-700"
+                    }`}
+                  >
+                    <span className="text-[11px] font-bold uppercase">
+                      {course.title.slice(0, 1)}
+                    </span>
+                  </Link>
+                );
+              }
+              return (
+                <Link
+                  key={course.id}
+                  href={`/app/courses/${course.id}`}
+                  className={`flex items-center px-3 py-1.5 rounded-lg text-sm transition-colors truncate ${
+                    active
+                      ? "bg-blue-50 text-blue-700 font-medium"
+                      : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"
+                  }`}
+                >
+                  {course.title}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* User / sign-out */}
       <div className={`border-t border-gray-100 shrink-0 space-y-0.5 ${collapsed ? "p-2" : "p-3"}`}>
