@@ -7,7 +7,10 @@ import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
 import { extractTextFromPdf, extractTextWithOCR } from "@/lib/extract";
 
-export type GenerateState = { error: string } | { success: true } | null;
+export type GenerateState =
+  | { error: string }
+  | { success: true; questionSetId: string; setTitle: string }
+  | null;
 export type WeakTopicGenerateState = { error: string } | { questionSetId: string } | null;
 
 // ---------------------------------------------------------------------------
@@ -340,7 +343,7 @@ export async function generateQuestions(
   }
 
   revalidatePath(`/app/courses/${courseId}`);
-  return { success: true };
+  return { success: true, questionSetId, setTitle: title };
 }
 
 // ---------------------------------------------------------------------------

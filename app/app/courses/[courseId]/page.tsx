@@ -1,19 +1,6 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import SignOutButton from "@/app/app/sign-out-button";
-import SourceUploadForm from "./upload-form";
-import { uploadSourceMaterials } from "./actions";
-import GenerateForm from "./generate-form";
-import { generateQuestions, generateWeakTopicQuestions } from "./generate-actions";
-import WeakTopicForm from "./weak-topic-form";
-
-const STATUS_STYLES: Record<string, string> = {
-  uploaded: "text-gray-400",
-  processing: "text-amber-500",
-  ready: "text-green-600",
-  failed: "text-red-500",
-};
 
 export default async function CourseDetailPage({
   params,
@@ -38,296 +25,171 @@ export default async function CourseDetailPage({
 
   if (!course) notFound();
 
-  const { data: documents } = await supabase
-    .from("documents")
-    .select("id, filename, status, error, created_at")
-    .eq("course_id", courseId)
-    .order("created_at", { ascending: false });
+  // Metadata counts for cards
+  const [{ count: docCount }, { count: setCount }, { data: topicStatsRaw }] =
+    await Promise.all([
+      supabase
+        .from("documents")
+        .select("*", { count: "exact", head: true })
+        .eq("course_id", courseId),
+      supabase
+        .from("question_sets")
+        .select("*", { count: "exact", head: true })
+        .eq("course_id", courseId)
+        .eq("user_id", user.id),
+      supabase
+        .from("topic_stats")
+        .select("attempts, correct")
+        .eq("course_id", courseId)
+        .eq("user_id", user.id)
+        .gte("attempts", 1),
+    ]);
 
-  const { data: questionSets } = await supabase
-    .from("question_sets")
-    .select("id, title, created_at, mode, questions(count)")
-    .eq("course_id", courseId)
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
-
-  const { data: topicStatsRaw } = await supabase
-    .from("topic_stats")
-    .select("topic, attempts, correct")
-    .eq("course_id", courseId)
-    .eq("user_id", user.id)
-    .gte("attempts", 1)
-    .order("attempts", { ascending: false });
-
-  // Sort by accuracy asc (weakest first) for display
-  const topicStats = (topicStatsRaw ?? [])
-    .map((t) => ({ ...t, accuracy: t.attempts > 0 ? t.correct / t.attempts : 0 }))
-    .sort((a, b) => a.accuracy - b.accuracy);
-
-  // Weak-topic practice is unlocked when at least one topic has >= 2 attempts
-  const hasWeakTopics = topicStats.some((t) => t.attempts >= 2);
-
-  // Progress dashboard stats
+  const topicStats = (topicStatsRaw ?? []).map((t) => ({
+    ...t,
+    accuracy: t.attempts > 0 ? t.correct / t.attempts : 0,
+  }));
+  const weakCount = topicStats.filter((t) => t.accuracy < 0.8).length;
+  const strongCount = topicStats.filter((t) => t.accuracy >= 0.8).length;
   const totalAnswered = topicStats.reduce((s, t) => s + t.attempts, 0);
   const totalCorrect = topicStats.reduce((s, t) => s + t.correct, 0);
   const overallAccuracy =
     totalAnswered > 0 ? Math.round((totalCorrect / totalAnswered) * 100) : null;
-  // Weakest 3 topics with at least 1 attempt (topicStats already sorted weakest first)
-  const weakestThree = topicStats.filter((t) => t.attempts >= 1).slice(0, 3);
+
+  const sections = [
+    {
+      href: `/app/courses/${courseId}/materials`,
+      label: "Source Materials",
+      description: "Upload lecture notes, textbook chapters, or slides.",
+      meta: docCount != null ? `${docCount} ${docCount === 1 ? "file" : "files"}` : null,
+      iconBg: "bg-blue-50",
+      iconColor: "text-blue-500",
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 2h8l4 4v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" />
+          <polyline points="12 2 12 6 16 6" />
+          <line x1="7" y1="10" x2="13" y2="10" />
+          <line x1="7" y1="13" x2="11" y2="13" />
+        </svg>
+      ),
+    },
+    {
+      href: `/app/courses/${courseId}/generate`,
+      label: "Generate Practice",
+      description: "Upload a past exam to generate AI practice questions.",
+      meta: null,
+      iconBg: "bg-violet-50",
+      iconColor: "text-violet-500",
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="10 2 13 8 19 8.5 14.5 13 16 19 10 16 4 19 5.5 13 1 8.5 7 8 10 2" />
+        </svg>
+      ),
+    },
+    {
+      href: `/app/courses/${courseId}/topics`,
+      label: "Topics",
+      description: "Track your weak and strong topics across practice sessions.",
+      meta:
+        topicStats.length > 0
+          ? `${weakCount} weak · ${strongCount} strong`
+          : null,
+      iconBg: "bg-amber-50",
+      iconColor: "text-amber-500",
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="18" y1="17" x2="2" y2="17" />
+          <rect x="3" y="10" width="3" height="7" rx="0.5" />
+          <rect x="8.5" y="5" width="3" height="12" rx="0.5" />
+          <rect x="14" y="1" width="3" height="16" rx="0.5" />
+        </svg>
+      ),
+    },
+    {
+      href: `/app/courses/${courseId}/sets`,
+      label: "Exam Sets",
+      description: "Browse and start all generated practice question sets.",
+      meta: setCount != null ? `${setCount} ${setCount === 1 ? "set" : "sets"}` : null,
+      iconBg: "bg-emerald-50",
+      iconColor: "text-emerald-500",
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="3" width="16" height="4" rx="1" />
+          <rect x="2" y="9" width="16" height="4" rx="1" />
+          <rect x="2" y="15" width="10" height="3" rx="1" />
+        </svg>
+      ),
+    },
+  ];
 
   return (
-    <div className="min-h-screen bg-white">
-      <nav className="border-b border-gray-100">
-        <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm">
-            <Link
-              href="/app"
-              className="text-gray-400 hover:text-gray-700 transition-colors"
-            >
-              Dashboard
-            </Link>
-            <span className="text-gray-200">/</span>
-            <span className="text-gray-900 font-medium truncate max-w-[200px]">
-              {course.title}
-            </span>
-          </div>
-          <SignOutButton />
+    <main className="max-w-3xl mx-auto px-6 py-10 space-y-8">
+      {/* Breadcrumb + title */}
+      <div>
+        <div className="flex items-center gap-2 text-sm mb-3">
+          <Link href="/app" className="text-gray-400 hover:text-gray-700 transition-colors">
+            Dashboard
+          </Link>
+          <span className="text-gray-200">/</span>
+          <span className="text-gray-500 truncate max-w-[240px]">{course.title}</span>
         </div>
-      </nav>
-
-      <main className="max-w-5xl mx-auto px-6 py-10 space-y-12">
-        <h1 className="text-2xl font-bold text-gray-900">{course.title}</h1>
-
-        {/* ── Section 1: Course Materials ─────────────────────────────── */}
-        <section className="space-y-6">
-          <div>
-            <h2 className="text-base font-semibold text-gray-900">
-              Course Materials
-            </h2>
-            <p className="text-sm text-gray-400 mt-0.5">
-              Upload lecture notes, textbook chapters, or slides. These are used
-              as the knowledge base for question generation.
+        <div className="flex items-end justify-between gap-4">
+          <h1 className="text-2xl font-bold text-gray-900">{course.title}</h1>
+          {overallAccuracy !== null && (
+            <p className="text-sm text-gray-400 shrink-0 pb-0.5">
+              {totalAnswered} answered ·{" "}
+              <span
+                className={`font-medium ${
+                  overallAccuracy >= 80
+                    ? "text-green-600"
+                    : overallAccuracy >= 50
+                    ? "text-amber-500"
+                    : "text-red-500"
+                }`}
+              >
+                {overallAccuracy}%
+              </span>
             </p>
-          </div>
+          )}
+        </div>
+      </div>
 
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-              Upload files
-            </p>
-            <SourceUploadForm
-              courseId={courseId}
-              action={uploadSourceMaterials}
-            />
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-              Uploaded materials
-            </p>
-            {!documents || documents.length === 0 ? (
-              <p className="text-sm text-gray-400">No files uploaded yet.</p>
-            ) : (
-              <div className="divide-y divide-gray-100 rounded-xl border border-gray-100">
-                {documents.map((doc) => (
-                  <div
-                    key={doc.id}
-                    className="flex items-start justify-between px-4 py-3 gap-4"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">
-                        {doc.filename}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {new Date(doc.created_at).toLocaleString()}
-                      </p>
-                      {doc.status === "failed" && doc.error && (
-                        <p className="text-xs text-red-400 mt-1">{doc.error}</p>
-                      )}
-                    </div>
-                    <span
-                      className={`text-xs font-medium capitalize shrink-0 pt-0.5 ${
-                        STATUS_STYLES[doc.status] ?? "text-gray-400"
-                      }`}
-                    >
-                      {doc.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* ── Section 2: Your Progress ────────────────────────────────── */}
-        <section className="space-y-6 pt-4 border-t border-gray-100">
-          <div>
-            <h2 className="text-base font-semibold text-gray-900">Your Progress</h2>
-            <p className="text-sm text-gray-400 mt-0.5">
-              Overall performance across all practice sessions for this course.
-            </p>
-          </div>
-
-          {totalAnswered === 0 ? (
-            <p className="text-sm text-gray-400">
-              Complete a practice session to see your progress.
-            </p>
-          ) : (
-            <div className="rounded-xl border border-gray-100 divide-y divide-gray-100">
-              <div className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm text-gray-600">Questions answered</span>
-                <span className="text-sm font-semibold text-gray-900 tabular-nums">
-                  {totalAnswered}
-                </span>
-              </div>
-              <div className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm text-gray-600">Overall accuracy</span>
-                <span
-                  className={`text-sm font-semibold tabular-nums ${
-                    overallAccuracy !== null && overallAccuracy >= 80
-                      ? "text-green-600"
-                      : overallAccuracy !== null && overallAccuracy >= 50
-                      ? "text-amber-500"
-                      : "text-red-500"
-                  }`}
-                >
-                  {overallAccuracy !== null ? `${overallAccuracy}%` : "—"}
-                </span>
-              </div>
-              {weakestThree.length > 0 && (
-                <div className="px-4 py-3 space-y-1.5">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                    Weakest topics
-                  </p>
-                  {weakestThree.map((t) => (
-                    <div key={t.topic} className="flex items-center justify-between">
-                      <span className="text-sm text-gray-700 truncate">{t.topic}</span>
-                      <span className="text-xs text-gray-400 tabular-nums ml-4 shrink-0">
-                        {Math.round(t.accuracy * 100)}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
+      {/* Section cards */}
+      <div className="grid gap-3">
+        {sections.map((s) => (
+          <Link
+            key={s.href}
+            href={s.href}
+            className="group flex items-center gap-4 bg-white rounded-xl border border-gray-100 px-5 py-4 hover:border-gray-300 transition-colors"
+          >
+            <div className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${s.iconBg} ${s.iconColor}`}>
+              {s.icon}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-gray-900 text-sm">{s.label}</p>
+              <p className="text-xs text-gray-400 mt-0.5 truncate">{s.description}</p>
+            </div>
+            <div className="shrink-0 flex items-center gap-3">
+              {s.meta && (
+                <span className="text-xs text-gray-400 tabular-nums">{s.meta}</span>
               )}
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 14 14"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-gray-300 group-hover:text-gray-500 transition-colors"
+              >
+                <polyline points="5 3 9 7 5 11" />
+              </svg>
             </div>
-          )}
-        </section>
-
-        {/* ── Section 3: Weak Topics ──────────────────────────────────── */}
-        <section className="space-y-6 pt-4 border-t border-gray-100">
-          <div>
-            <h2 className="text-base font-semibold text-gray-900">Weak Topics</h2>
-            <p className="text-sm text-gray-400 mt-0.5">
-              Topics where you need more practice, ranked weakest first.
-            </p>
-          </div>
-
-          {topicStats.length === 0 ? (
-            <p className="text-sm text-gray-400">
-              No data yet. Complete a practice set to see your weak topics.
-            </p>
-          ) : (
-            <div className="divide-y divide-gray-100 rounded-xl border border-gray-100">
-              {topicStats.map((t) => (
-                <div
-                  key={t.topic}
-                  className="flex items-center justify-between px-4 py-3 gap-4"
-                >
-                  <p className="text-sm font-medium text-gray-800 truncate">{t.topic}</p>
-                  <div className="flex items-center gap-4 shrink-0 text-xs text-gray-400 tabular-nums">
-                    <span>{t.correct}/{t.attempts} correct</span>
-                    <span
-                      className={`font-semibold ${
-                        t.accuracy >= 0.8
-                          ? "text-green-600"
-                          : t.accuracy >= 0.5
-                          ? "text-amber-500"
-                          : "text-red-500"
-                      }`}
-                    >
-                      {Math.round(t.accuracy * 100)}%
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <WeakTopicForm
-            courseId={courseId}
-            hasWeakTopics={hasWeakTopics}
-            action={generateWeakTopicQuestions}
-          />
-        </section>
-
-        {/* ── Section 3: Generate Questions ───────────────────────────── */}
-        <section className="space-y-6 pt-4 border-t border-gray-100">
-          <div>
-            <h2 className="text-base font-semibold text-gray-900">
-              Generate Questions
-            </h2>
-            <p className="text-sm text-gray-400 mt-0.5">
-              Upload a past exam PDF or paste exam questions to set the style.
-              Questions are generated from your course materials.
-            </p>
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-              Exam input
-            </p>
-            <GenerateForm courseId={courseId} action={generateQuestions} />
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-              Question sets
-            </p>
-            {!questionSets || questionSets.length === 0 ? (
-              <p className="text-sm text-gray-400">
-                No question sets yet. Generate one above.
-              </p>
-            ) : (
-              <div className="divide-y divide-gray-100 rounded-xl border border-gray-100">
-                {questionSets.map((qs) => {
-                  const count =
-                    Array.isArray(qs.questions) && qs.questions.length > 0
-                      ? (qs.questions[0] as { count: number }).count
-                      : 0;
-                  return (
-                    <div
-                      key={qs.id}
-                      className="flex items-center justify-between px-4 py-3 gap-4"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-gray-800 truncate">
-                            {qs.title}
-                          </p>
-                          {qs.mode === "weak_topics" && (
-                            <span className="shrink-0 text-xs font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-600">
-                              Weak Topics
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {count} {count === 1 ? "question" : "questions"} &middot;{" "}
-                          {new Date(qs.created_at).toLocaleString()}
-                        </p>
-                      </div>
-                      <Link
-                        href={`/app/question-sets/${qs.id}/practice`}
-                        className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-gray-700 transition-colors"
-                      >
-                        Start Practice
-                      </Link>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </section>
-      </main>
-    </div>
+          </Link>
+        ))}
+      </div>
+    </main>
   );
 }

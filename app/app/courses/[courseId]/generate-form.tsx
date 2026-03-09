@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useRef } from "react";
+import Link from "next/link";
 import { Textarea } from "@/components/ui/textarea";
 import type { GenerateState } from "./generate-actions";
 
@@ -129,7 +130,40 @@ export default function GenerateForm({ courseId, action }: Props) {
         <p className="text-sm text-red-500 whitespace-pre-line">{state.error}</p>
       )}
       {state && "success" in state && (
-        <p className="text-sm text-green-600">Question set generated successfully.</p>
+        <div className="rounded-xl border border-gray-100 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 gap-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-gray-800 truncate">
+                  {state.setTitle}
+                </p>
+                <span className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-green-50 text-green-600 font-medium">
+                  New
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {total} {total === 1 ? "question" : "questions"} · just generated
+              </p>
+            </div>
+            <Link
+              href={`/app/question-sets/${state.questionSetId}/practice`}
+              className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-gray-700 transition-colors"
+            >
+              Practice
+            </Link>
+          </div>
+          <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+            <p className="text-xs text-gray-400">
+              Question set created successfully.
+            </p>
+            <Link
+              href={`/app/courses/${courseId}/sets`}
+              className="text-xs text-gray-500 hover:text-gray-800 transition-colors"
+            >
+              View all sets →
+            </Link>
+          </div>
+        </div>
       )}
 
       <button

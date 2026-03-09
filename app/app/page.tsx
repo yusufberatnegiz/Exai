@@ -1,9 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import SignOutButton from "./sign-out-button";
 import CreateCourseForm from "./create-course-form";
-import { Card, CardContent } from "@/components/ui/card";
 import { createCourse } from "./actions";
 
 export default async function AppPage() {
@@ -12,12 +10,10 @@ export default async function AppPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect("/auth");
-  }
+  if (!user) redirect("/auth");
 
   // Upsert profile on first login — idempotent
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile } = await supabase
     .from("profiles")
     .upsert(
       { id: user.id, ...(user.email ? { email: user.email } : {}) },
@@ -26,87 +22,78 @@ export default async function AppPage() {
     .select("plan")
     .single();
 
-  // Fetch this user's courses
+  // Fetch courses with question set counts
   const { data: courses } = await supabase
     .from("courses")
-    .select("id, title, created_at")
+    .select("id, title, created_at, question_sets(count)")
     .order("created_at", { ascending: false });
 
   return (
-    <div className="min-h-screen bg-white">
-      <nav className="border-b border-gray-100">
-        <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
-          <span className="flex items-center gap-2">
-            <img src="/logo.png" alt="Exai" className="h-7 w-7 object-contain" />
-            <span className="font-semibold text-gray-900 tracking-tight">Exai</span>
-          </span>
-          <SignOutButton />
-        </div>
-      </nav>
-
-      <main className="max-w-5xl mx-auto px-6 py-10 space-y-10">
-        {/* Header */}
+    <main className="max-w-4xl mx-auto px-6 py-10 space-y-10">
+      {/* Page header */}
+      <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Logged in as{" "}
-            <span className="text-gray-900">{user.email ?? user.id}</span>
+          <p className="mt-1 text-sm text-gray-400">
+            Plan:{" "}
+            <span className="text-gray-600 font-medium capitalize">
+              {profile?.plan ?? "free"}
+            </span>
           </p>
-          {profileError ? (
-            <p className="mt-1 text-sm text-amber-600">
-              Could not load profile data. Some features may be limited.
-            </p>
-          ) : (
-            <p className="mt-1 text-sm text-gray-400">
-              Plan:{" "}
-              <span className="text-gray-600 font-medium capitalize">
-                {profile?.plan ?? "free"}
-              </span>
-            </p>
-          )}
         </div>
+      </div>
 
-        {/* Create course */}
-        <section>
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-            Add a course
-          </h2>
+      {/* Create a course */}
+      <section>
+        <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+          New course
+        </h2>
+        <div className="bg-white rounded-xl border border-gray-100 p-5">
           <CreateCourseForm action={createCourse} />
-        </section>
+        </div>
+      </section>
 
-        {/* Courses list */}
-        <section>
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-            Your courses
-          </h2>
-          {!courses || courses.length === 0 ? (
-            <p className="text-sm text-gray-400">
-              No courses yet. Create one above.
-            </p>
-          ) : (
-            <div className="grid sm:grid-cols-2 gap-3">
-              {courses.map((course) => (
+      {/* Courses list */}
+      <section>
+        <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+          Your courses
+        </h2>
+        {!courses || courses.length === 0 ? (
+          <p className="text-sm text-gray-400">
+            No courses yet. Create one above.
+          </p>
+        ) : (
+          <div className="grid sm:grid-cols-2 gap-3">
+            {courses.map((course) => {
+              const setCount =
+                Array.isArray(course.question_sets) &&
+                course.question_sets.length > 0
+                  ? (course.question_sets[0] as { count: number }).count
+                  : 0;
+              return (
                 <Link
                   key={course.id}
                   href={`/app/courses/${course.id}`}
-                  className="group block"
+                  className="group block bg-white rounded-xl border border-gray-100 p-5 hover:border-gray-300 transition-colors"
                 >
-                  <Card className="transition-colors group-hover:border-gray-300">
-                    <CardContent className="p-4">
-                      <p className="font-medium text-gray-900">
-                        {course.title}
-                      </p>
-                      <p className="text-xs text-gray-300 mt-2">
-                        {new Date(course.created_at).toLocaleDateString()}
-                      </p>
-                    </CardContent>
-                  </Card>
+                  <p className="font-semibold text-gray-900 group-hover:text-gray-700 transition-colors">
+                    {course.title}
+                  </p>
+                  <div className="flex items-center gap-3 mt-2.5 text-xs text-gray-400">
+                    <span>
+                      {setCount} {setCount === 1 ? "question set" : "question sets"}
+                    </span>
+                    <span>&middot;</span>
+                    <span>
+                      {new Date(course.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
                 </Link>
-              ))}
-            </div>
-          )}
-        </section>
-      </main>
-    </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </main>
   );
 }
