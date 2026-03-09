@@ -1,6 +1,8 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import WeakTopicForm from "./weak-topic-form";
+import { generateWeakTopicQuestions } from "./generate-actions";
 
 export default async function CourseDetailPage({
   params,
@@ -25,36 +27,59 @@ export default async function CourseDetailPage({
 
   if (!course) notFound();
 
-  // Metadata counts for cards
-  const [{ count: docCount }, { count: setCount }, { data: topicStatsRaw }] =
-    await Promise.all([
-      supabase
-        .from("documents")
-        .select("*", { count: "exact", head: true })
-        .eq("course_id", courseId),
-      supabase
-        .from("question_sets")
-        .select("*", { count: "exact", head: true })
-        .eq("course_id", courseId)
-        .eq("user_id", user.id),
-      supabase
-        .from("topic_stats")
-        .select("attempts, correct")
-        .eq("course_id", courseId)
-        .eq("user_id", user.id)
-        .gte("attempts", 1),
-    ]);
+  const [
+    { count: docCount },
+    { count: setCount },
+    { data: topicStatsRaw },
+    { data: recentSetsRaw },
+  ] = await Promise.all([
+    supabase
+      .from("documents")
+      .select("*", { count: "exact", head: true })
+      .eq("course_id", courseId),
+    supabase
+      .from("question_sets")
+      .select("*", { count: "exact", head: true })
+      .eq("course_id", courseId)
+      .eq("user_id", user.id),
+    supabase
+      .from("topic_stats")
+      .select("topic, attempts, correct")
+      .eq("course_id", courseId)
+      .eq("user_id", user.id)
+      .gte("attempts", 1),
+    supabase
+      .from("question_sets")
+      .select("id, title, mode, created_at, questions(count)")
+      .eq("course_id", courseId)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(3),
+  ]);
 
   const topicStats = (topicStatsRaw ?? []).map((t) => ({
     ...t,
     accuracy: t.attempts > 0 ? t.correct / t.attempts : 0,
   }));
-  const weakCount = topicStats.filter((t) => t.accuracy < 0.8).length;
-  const strongCount = topicStats.filter((t) => t.accuracy >= 0.8).length;
+  const weakTopics = topicStats.filter((t) => t.accuracy < 0.8).sort((a, b) => a.accuracy - b.accuracy);
+  const strongTopics = topicStats.filter((t) => t.accuracy >= 0.8);
+  const weakCount = weakTopics.length;
+  const strongCount = strongTopics.length;
   const totalAnswered = topicStats.reduce((s, t) => s + t.attempts, 0);
   const totalCorrect = topicStats.reduce((s, t) => s + t.correct, 0);
   const overallAccuracy =
     totalAnswered > 0 ? Math.round((totalCorrect / totalAnswered) * 100) : null;
+
+  // Top 5 weakest-first for progress bars
+  const topicBars = [...topicStats].sort((a, b) => a.accuracy - b.accuracy).slice(0, 5);
+
+  const recentSets = (recentSetsRaw ?? []).map((qs) => ({
+    ...qs,
+    questionCount:
+      Array.isArray(qs.questions) && qs.questions.length > 0
+        ? (qs.questions[0] as { count: number }).count
+        : 0,
+  }));
 
   const sections = [
     {
@@ -128,6 +153,7 @@ export default async function CourseDetailPage({
 
   return (
     <main className="max-w-3xl mx-auto px-6 py-10 space-y-8">
+
       {/* Breadcrumb + title */}
       <div>
         <div className="flex items-center gap-2 text-sm mb-3">
@@ -137,28 +163,35 @@ export default async function CourseDetailPage({
           <span className="text-gray-200">/</span>
           <span className="text-gray-500 truncate max-w-[240px]">{course.title}</span>
         </div>
-        <div className="flex items-end justify-between gap-4">
-          <h1 className="text-2xl font-bold text-gray-900">{course.title}</h1>
-          {overallAccuracy !== null && (
-            <div className="flex items-center gap-2 shrink-0 pb-0.5">
-              <span className="text-sm text-gray-400">{totalAnswered} answered</span>
-              <span
-                className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                  overallAccuracy >= 75
-                    ? "bg-emerald-50 text-emerald-700"
-                    : overallAccuracy >= 50
-                    ? "bg-amber-50 text-amber-700"
-                    : "bg-red-50 text-red-700"
-                }`}
-              >
-                {overallAccuracy}%
-              </span>
-            </div>
-          )}
-        </div>
+        <h1 className="text-2xl font-bold text-gray-900">{course.title}</h1>
       </div>
 
-      {/* Section cards */}
+      {/* Progress summary — 4 stat chips */}
+      {totalAnswered > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <StatChip label="Answered" value={totalAnswered.toString()} sub="questions" />
+          <StatChip
+            label="Accuracy"
+            value={`${overallAccuracy}%`}
+            sub="overall"
+            accent={overallAccuracy! >= 70 ? "emerald" : overallAccuracy! >= 50 ? "amber" : "red"}
+          />
+          <StatChip
+            label="Weak"
+            value={weakCount.toString()}
+            sub={weakCount === 1 ? "topic" : "topics"}
+            accent={weakCount > 0 ? "red" : undefined}
+          />
+          <StatChip
+            label="Strong"
+            value={strongCount.toString()}
+            sub={strongCount === 1 ? "topic" : "topics"}
+            accent={strongCount > 0 ? "emerald" : undefined}
+          />
+        </div>
+      )}
+
+      {/* Section nav cards */}
       <div className="grid gap-3">
         {sections.map((s) => (
           <Link
@@ -178,14 +211,8 @@ export default async function CourseDetailPage({
                 <span className="text-xs text-gray-400 tabular-nums">{s.meta}</span>
               )}
               <svg
-                width="14"
-                height="14"
-                viewBox="0 0 14 14"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+                width="14" height="14" viewBox="0 0 14 14" fill="none"
+                stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
                 className="text-gray-300 group-hover:text-gray-500 transition-colors"
               >
                 <polyline points="5 3 9 7 5 11" />
@@ -194,6 +221,156 @@ export default async function CourseDetailPage({
           </Link>
         ))}
       </div>
+
+      {/* Topic performance bars — top 5 weakest first */}
+      {topicBars.length > 0 && (
+        <section className="space-y-4 pt-2 border-t border-gray-100">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+              Topic Performance
+            </h2>
+            {topicStats.length > 5 && (
+              <Link
+                href={`/app/courses/${courseId}/topics`}
+                className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
+              >
+                View all →
+              </Link>
+            )}
+          </div>
+          <div className="space-y-3">
+            {topicBars.map((t) => {
+              const pct = Math.round(t.accuracy * 100);
+              const barColor = pct < 50 ? "bg-red-400" : pct < 80 ? "bg-amber-400" : "bg-emerald-400";
+              const textColor = pct < 50 ? "text-red-600" : pct < 80 ? "text-amber-600" : "text-emerald-600";
+              return (
+                <div key={t.topic} className="space-y-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-gray-700 truncate min-w-0">{t.topic}</span>
+                    <div className="shrink-0 flex items-center gap-3">
+                      <span className="text-xs text-gray-400 tabular-nums">
+                        {t.attempts} {t.attempts === 1 ? "attempt" : "attempts"}
+                      </span>
+                      <span className={`text-xs font-semibold tabular-nums w-8 text-right ${textColor}`}>
+                        {pct}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${barColor}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Weak topics CTA */}
+      {weakCount > 0 && (
+        <section className="rounded-xl border border-amber-100 bg-amber-50/50 px-5 py-4 space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">
+              {weakCount} weak {weakCount === 1 ? "topic" : "topics"} need attention
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Generate a targeted practice set focused on your weakest areas.
+            </p>
+          </div>
+          <WeakTopicForm
+            courseId={courseId}
+            hasWeakTopics={true}
+            action={generateWeakTopicQuestions}
+          />
+        </section>
+      )}
+
+      {/* Recent practice */}
+      {recentSets.length > 0 && (
+        <section className="space-y-4 pt-2 border-t border-gray-100">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+              Recent Practice
+            </h2>
+            <Link
+              href={`/app/courses/${courseId}/sets`}
+              className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
+            >
+              View all →
+            </Link>
+          </div>
+          <div className="divide-y divide-gray-100 rounded-xl border border-gray-100 overflow-hidden">
+            {recentSets.map((qs) => (
+              <Link
+                key={qs.id}
+                href={`/app/question-sets/${qs.id}/practice`}
+                className="flex items-center justify-between px-4 py-3 gap-4 bg-white hover:bg-gray-50 transition-colors group"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-gray-800 truncate">{qs.title}</p>
+                    {qs.mode === "weak_topics" && (
+                      <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 uppercase tracking-wide">
+                        Weak
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {qs.questionCount} {qs.questionCount === 1 ? "question" : "questions"} &middot;{" "}
+                    {new Date(qs.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <svg
+                  width="14" height="14" viewBox="0 0 14 14" fill="none"
+                  stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+                  className="shrink-0 text-gray-300 group-hover:text-gray-500 transition-colors"
+                >
+                  <polyline points="5 3 9 7 5 11" />
+                </svg>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
     </main>
+  );
+}
+
+// ── Stat chip ──────────────────────────────────────────────────────────────────
+
+type Accent = "emerald" | "amber" | "red";
+
+const ACCENT_STYLES: Record<Accent, { value: string; bg: string }> = {
+  emerald: { value: "text-emerald-700", bg: "bg-emerald-50" },
+  amber:   { value: "text-amber-700",   bg: "bg-amber-50" },
+  red:     { value: "text-red-700",     bg: "bg-red-50" },
+};
+
+function StatChip({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  accent?: Accent;
+}) {
+  const style = accent ? ACCENT_STYLES[accent] : null;
+  return (
+    <div className={`rounded-xl border border-gray-100 px-4 py-3 ${style?.bg ?? "bg-white"}`}>
+      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+        {label}
+      </p>
+      <p className={`text-xl font-bold tabular-nums leading-tight ${style?.value ?? "text-gray-900"}`}>
+        {value}
+      </p>
+      <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+    </div>
   );
 }
