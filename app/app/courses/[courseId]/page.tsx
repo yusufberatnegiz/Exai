@@ -64,6 +64,7 @@ export default async function CourseDetailPage({
       meta: docCount != null ? `${docCount} ${docCount === 1 ? "file" : "files"}` : null,
       iconBg: "bg-blue-50",
       iconColor: "text-blue-500",
+      hoverClass: "hover:border-blue-200 hover:bg-blue-50/40",
       icon: (
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M4 2h8l4 4v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" />
@@ -80,6 +81,7 @@ export default async function CourseDetailPage({
       meta: null,
       iconBg: "bg-violet-50",
       iconColor: "text-violet-500",
+      hoverClass: "hover:border-violet-200 hover:bg-violet-50/40",
       icon: (
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <polygon points="10 2 13 8 19 8.5 14.5 13 16 19 10 16 4 19 5.5 13 1 8.5 7 8 10 2" />
@@ -96,6 +98,7 @@ export default async function CourseDetailPage({
           : null,
       iconBg: "bg-amber-50",
       iconColor: "text-amber-500",
+      hoverClass: "hover:border-amber-200 hover:bg-amber-50/40",
       icon: (
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <line x1="18" y1="17" x2="2" y2="17" />
@@ -112,6 +115,7 @@ export default async function CourseDetailPage({
       meta: setCount != null ? `${setCount} ${setCount === 1 ? "set" : "sets"}` : null,
       iconBg: "bg-emerald-50",
       iconColor: "text-emerald-500",
+      hoverClass: "hover:border-emerald-200 hover:bg-emerald-50/40",
       icon: (
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <rect x="2" y="3" width="16" height="4" rx="1" />
@@ -160,7 +164,7 @@ export default async function CourseDetailPage({
           <Link
             key={s.href}
             href={s.href}
-            className="group flex items-center gap-4 bg-white rounded-xl border border-gray-100 px-5 py-4 hover:border-gray-300 transition-colors"
+            className={`group flex items-center gap-4 bg-white rounded-xl border border-gray-100 px-5 py-4 ${s.hoverClass} transition-colors`}
           >
             <div className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${s.iconBg} ${s.iconColor}`}>
               {s.icon}
