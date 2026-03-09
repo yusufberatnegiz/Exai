@@ -304,10 +304,9 @@ export default async function CourseDetailPage({
           </div>
           <div className="divide-y divide-gray-100 rounded-xl border border-gray-100 overflow-hidden">
             {recentSets.map((qs) => (
-              <Link
+              <div
                 key={qs.id}
-                href={`/app/question-sets/${qs.id}/practice`}
-                className="flex items-center justify-between px-4 py-3 gap-4 bg-white hover:bg-gray-50 transition-colors group"
+                className="flex items-center justify-between px-4 py-3 gap-4 bg-white"
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -323,14 +322,21 @@ export default async function CourseDetailPage({
                     {new Date(qs.created_at).toLocaleDateString()}
                   </p>
                 </div>
-                <svg
-                  width="14" height="14" viewBox="0 0 14 14" fill="none"
-                  stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-                  className="shrink-0 text-gray-300 group-hover:text-gray-500 transition-colors"
-                >
-                  <polyline points="5 3 9 7 5 11" />
-                </svg>
-              </Link>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Link
+                    href={`/app/question-sets/${qs.id}/exam`}
+                    className="text-xs font-medium px-2.5 py-1 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors"
+                  >
+                    Exam
+                  </Link>
+                  <Link
+                    href={`/app/question-sets/${qs.id}/practice`}
+                    className="text-xs font-medium px-2.5 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                  >
+                    Practice
+                  </Link>
+                </div>
+              </div>
             ))}
           </div>
         </section>

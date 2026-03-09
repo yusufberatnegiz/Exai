@@ -95,12 +95,20 @@ export default async function SetsPage({
                       {new Date(qs.created_at).toLocaleString()}
                     </p>
                   </div>
-                  <Link
-                    href={`/app/question-sets/${qs.id}/practice`}
-                    className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
-                  >
-                    Practice
-                  </Link>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Link
+                      href={`/app/question-sets/${qs.id}/exam`}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors"
+                    >
+                      Exam
+                    </Link>
+                    <Link
+                      href={`/app/question-sets/${qs.id}/practice`}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                    >
+                      Practice
+                    </Link>
+                  </div>
                 </div>
               );
             })}

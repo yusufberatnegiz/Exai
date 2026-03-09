@@ -3,8 +3,19 @@
 import { useState, useTransition, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import type { AttemptResult, GradeResult } from "./actions";
+import type { CodingEditorProps } from "./coding-editor";
+
+const CodingEditorDynamic = dynamic(() => import("./coding-editor"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[300px] rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center text-sm text-gray-400">
+      Loading editor…
+    </div>
+  ),
+}) as React.ComponentType<CodingEditorProps>;
 
 type Question = {
   id: string;
@@ -140,7 +151,8 @@ export default function PracticeClient({
 
     function onKeyDown(e: KeyboardEvent) {
       const activeTag = (document.activeElement as HTMLElement)?.tagName;
-      const inTextarea = activeTag === "TEXTAREA" || activeTag === "INPUT";
+      const inMonaco = !!(document.activeElement as HTMLElement)?.closest(".monaco-editor");
+      const inTextarea = activeTag === "TEXTAREA" || activeTag === "INPUT" || inMonaco;
 
       // ⌘/Ctrl+Enter: submit from textarea
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
@@ -447,6 +459,7 @@ export default function PracticeClient({
               isSubmitted={isSubmitted}
               isPending={isPending}
               onChange={(val) => handleAnswerChange(q.id, val)}
+              onCmdEnter={!isSubmitted && !isPending ? () => handleSubmit(q.id) : undefined}
             />
 
             {submitError && (
@@ -636,9 +649,10 @@ type AnswerInputProps = {
   isSubmitted: boolean;
   isPending: boolean;
   onChange: (val: string) => void;
+  onCmdEnter?: () => void;
 };
 
-function AnswerInput({ question, answer, isSubmitted, isPending, onChange }: AnswerInputProps) {
+function AnswerInput({ question, answer, isSubmitted, isPending, onChange, onCmdEnter }: AnswerInputProps) {
   const disabled = isSubmitted || isPending;
 
   // True / False
@@ -715,9 +729,17 @@ function AnswerInput({ question, answer, isSubmitted, isPending, onChange }: Ans
     );
   }
 
-  // Coding
+  // Coding — Monaco editor (lazy-loaded, client-only)
   if (question.question_type === "coding") {
-    return <CodingTextarea value={answer} onChange={onChange} disabled={disabled} />;
+    return (
+      <CodingEditorDynamic
+        value={answer}
+        onChange={onChange}
+        disabled={disabled}
+        language="javascript"
+        onCmdEnter={onCmdEnter}
+      />
+    );
   }
 
   // Open (default)

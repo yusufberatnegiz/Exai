@@ -113,25 +113,33 @@ export default async function TopicsPage({
           {weakTopics.length === 0 ? (
             <p className="text-sm text-gray-400">No weak topics — keep it up!</p>
           ) : (
-            <div className="divide-y divide-gray-100 rounded-xl border border-gray-100">
-              {weakTopics.map((t) => (
-                <div
-                  key={t.topic}
-                  className="flex items-center justify-between px-4 py-3 gap-4"
-                >
-                  <p className="text-sm font-medium text-gray-800 truncate">{t.topic}</p>
-                  <div className="flex items-center gap-4 shrink-0 text-xs text-gray-400 tabular-nums">
-                    <span>{t.correct}/{t.attempts}</span>
-                    <span
-                      className={`font-semibold w-10 text-right ${
-                        t.accuracy >= 0.5 ? "text-amber-500" : "text-red-500"
-                      }`}
-                    >
-                      {Math.round(t.accuracy * 100)}%
-                    </span>
+            <div className="space-y-3">
+              {weakTopics.map((t) => {
+                const pct = Math.round(t.accuracy * 100);
+                const barColor = pct < 50 ? "bg-red-400" : "bg-amber-400";
+                const textColor = pct < 50 ? "text-red-600" : "text-amber-600";
+                return (
+                  <div key={t.topic} className="space-y-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-gray-700 truncate min-w-0">{t.topic}</span>
+                      <div className="shrink-0 flex items-center gap-3">
+                        <span className="text-xs text-gray-400 tabular-nums">
+                          {t.correct}/{t.attempts}
+                        </span>
+                        <span className={`text-xs font-semibold tabular-nums w-8 text-right ${textColor}`}>
+                          {pct}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${barColor}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -156,21 +164,31 @@ export default async function TopicsPage({
           {strongTopics.length === 0 ? (
             <p className="text-sm text-gray-400">No strong topics yet — keep practising!</p>
           ) : (
-            <div className="divide-y divide-gray-100 rounded-xl border border-gray-100">
-              {strongTopics.map((t) => (
-                <div
-                  key={t.topic}
-                  className="flex items-center justify-between px-4 py-3 gap-4"
-                >
-                  <p className="text-sm font-medium text-gray-800 truncate">{t.topic}</p>
-                  <div className="flex items-center gap-4 shrink-0 text-xs text-gray-400 tabular-nums">
-                    <span>{t.correct}/{t.attempts}</span>
-                    <span className="font-semibold text-green-600 w-10 text-right">
-                      {Math.round(t.accuracy * 100)}%
-                    </span>
+            <div className="space-y-3">
+              {strongTopics.map((t) => {
+                const pct = Math.round(t.accuracy * 100);
+                return (
+                  <div key={t.topic} className="space-y-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-gray-700 truncate min-w-0">{t.topic}</span>
+                      <div className="shrink-0 flex items-center gap-3">
+                        <span className="text-xs text-gray-400 tabular-nums">
+                          {t.correct}/{t.attempts}
+                        </span>
+                        <span className="text-xs font-semibold tabular-nums w-8 text-right text-emerald-600">
+                          {pct}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all bg-emerald-400"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
