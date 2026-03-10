@@ -95,9 +95,24 @@ export default async function TopicsPage({
       </div>
 
       {topicStats.length === 0 && (
-        <p className="text-sm text-gray-400 dark:text-zinc-400 pt-6 border-t border-gray-100 dark:border-zinc-700">
-          Complete a practice session to see your topic breakdown.
-        </p>
+        <div className="pt-6 border-t border-gray-100 dark:border-zinc-700">
+          <div className="rounded-xl border border-dashed border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-6 py-10 flex flex-col items-center text-center gap-2">
+            <div className="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-amber-500 dark:text-amber-400">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="17" x2="2" y2="17" />
+                <rect x="3" y="10" width="3" height="7" rx="0.5" />
+                <rect x="8.5" y="5" width="3" height="12" rx="0.5" />
+                <rect x="14" y="1" width="3" height="16" rx="0.5" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">No topic data yet</p>
+              <p className="text-xs text-gray-400 dark:text-zinc-400 mt-1 max-w-xs">
+                Practice some questions to see your strongest and weakest topics.
+              </p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Weak Topics */}

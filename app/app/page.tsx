@@ -217,9 +217,28 @@ export default async function AppPage() {
           Your Courses
         </h2>
         {!courses || courses.length === 0 ? (
-          <p className="text-sm text-gray-400 dark:text-zinc-400">
-            No courses yet. Create one below.
-          </p>
+          <div className="rounded-xl border border-gray-100 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-6 py-10 flex flex-col items-center text-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-500 dark:text-blue-400">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 2h8l4 4v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" />
+                <polyline points="12 2 12 6 16 6" />
+                <line x1="10" y1="9" x2="10" y2="14" />
+                <line x1="7.5" y1="11.5" x2="12.5" y2="11.5" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">Create your first course</p>
+              <p className="text-xs text-gray-400 dark:text-zinc-400 mt-1 max-w-xs">
+                Upload course materials and generate practice questions for your exams.
+              </p>
+            </div>
+            <a
+              href="#new-course"
+              className="mt-1 text-sm font-medium px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            >
+              Create Course
+            </a>
+          </div>
         ) : (
           <div className="grid sm:grid-cols-2 gap-3">
             {courses.map((course) => {
@@ -258,7 +277,7 @@ export default async function AppPage() {
       </section>
 
       {/* New Course */}
-      <section>
+      <section id="new-course">
         <h2 className="text-xs font-semibold text-gray-400 dark:text-zinc-400 uppercase tracking-wide mb-3">
           New Course
         </h2>

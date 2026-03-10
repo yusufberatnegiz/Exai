@@ -221,6 +221,57 @@ export default async function CourseDetailPage({
         ))}
       </div>
 
+      {/* Getting started — empty state hints */}
+      {(docCount === 0 || setCount === 0) && (
+        <div className="grid sm:grid-cols-2 gap-3">
+          {docCount === 0 && (
+            <div className="rounded-xl border border-dashed border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-5 py-6 flex flex-col items-center text-center gap-2">
+              <div className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-500 dark:text-blue-400">
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 2h8l4 4v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" />
+                  <polyline points="12 2 12 6 16 6" />
+                  <line x1="10" y1="9" x2="10" y2="14" />
+                  <line x1="7.5" y1="11.5" x2="12.5" y2="11.5" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">No course materials yet</p>
+                <p className="text-xs text-gray-400 dark:text-zinc-400 mt-0.5">
+                  Upload lecture slides, notes, or PDFs to generate exam-style practice questions.
+                </p>
+              </div>
+              <Link
+                href={`/app/courses/${courseId}/materials`}
+                className="mt-1 text-xs font-medium px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+              >
+                Upload Materials
+              </Link>
+            </div>
+          )}
+          {setCount === 0 && (
+            <div className="rounded-xl border border-dashed border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-5 py-6 flex flex-col items-center text-center gap-2">
+              <div className="w-9 h-9 rounded-lg bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center text-violet-500 dark:text-violet-400">
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="10 2 13 8 19 8.5 14.5 13 16 19 10 16 4 19 5.5 13 1 8.5 7 8 10 2" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">No question sets yet</p>
+                <p className="text-xs text-gray-400 dark:text-zinc-400 mt-0.5">
+                  Generate questions using your materials or a past exam.
+                </p>
+              </div>
+              <Link
+                href={`/app/courses/${courseId}/generate`}
+                className="mt-1 text-xs font-medium px-3 py-1.5 rounded-lg border border-violet-200 dark:border-violet-800 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors"
+              >
+                Generate Questions
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Topic performance bars */}
       {topicBars.length > 0 && (
         <section className="space-y-4 pt-2 border-t border-gray-100 dark:border-zinc-700">
