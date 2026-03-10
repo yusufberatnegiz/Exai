@@ -121,7 +121,7 @@ export default function Sidebar({
             <button
               onClick={toggle}
               title="Collapse sidebar"
-              className="shrink-0 flex items-center justify-center w-7 h-7 rounded-md text-gray-300 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/8 transition-colors"
+              className="shrink-0 flex items-center justify-center w-7 h-7 rounded-md text-gray-300 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/8 transition-colors"
             >
               <IconCollapse />
             </button>
@@ -165,7 +165,7 @@ export default function Sidebar({
         {courses.length > 0 && (
           <div className="mt-5">
             {!collapsed && (
-              <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-widest px-3 mb-1.5">
+              <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest px-3 mb-1.5">
                 Courses
               </p>
             )}
@@ -248,7 +248,7 @@ export default function Sidebar({
           <button
             onClick={handleSignOut}
             title="Sign out"
-            className="flex items-center justify-center w-9 h-9 mx-auto rounded-lg text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-white/8 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            className="flex items-center justify-center w-9 h-9 mx-auto rounded-lg text-gray-400 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/8 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
           >
             <IconSignOut />
           </button>
@@ -259,13 +259,13 @@ export default function Sidebar({
                 {initial}
               </span>
             </div>
-            <p className="flex-1 text-[12px] text-gray-400 dark:text-gray-500 truncate min-w-0">
+            <p className="flex-1 text-[12px] text-gray-400 dark:text-gray-400 truncate min-w-0">
               {userEmail}
             </p>
             <button
               onClick={handleSignOut}
               title="Sign out"
-              className="shrink-0 flex items-center justify-center w-6 h-6 rounded-md text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/8 transition-colors"
+              className="shrink-0 flex items-center justify-center w-6 h-6 rounded-md text-gray-300 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/8 transition-colors"
             >
               <IconSignOut />
             </button>
