@@ -21,6 +21,7 @@ const QuestionSchema = z.object({
   question_text: z.string().min(1),
   question_type: z.enum(["open", "tf", "mcq", "coding"]),
   choices: z.array(z.string()).nullable().optional(),
+  correct_answer: z.string().nullable().optional(),
   solution_text: z.string().min(1),
   topic: z.string().min(1),
   difficulty: z.enum(["easy", "medium", "hard"]),
@@ -77,13 +78,19 @@ function buildSystemPrompt(total: number, instructions: string, counts: TypeCoun
       "question_text": "...",
       "question_type": "open" | "tf" | "mcq" | "coding",
       "choices": null | ["True", "False"] | ["A", "B", "C", "D"],
+      "correct_answer": null | "the exact correct choice string",
       "solution_text": "...",
       "topic": "...",
       "difficulty": "easy" | "medium" | "hard",
       "source_refs": []
     }
   ]
-}`;
+}
+
+correct_answer rules:
+- mcq: must be EXACTLY one of the strings in choices (copy it verbatim)
+- tf: must be EXACTLY "True" or "False"
+- open / coding: must be null`;
 
   if (counts) {
     const breakdown = [
@@ -330,6 +337,7 @@ export async function generateQuestions(
       question_text: q.question_text,
       question_type: q.question_type,
       choices: q.choices?.length ? q.choices : null,
+      correct_answer: q.correct_answer ?? null,
       solution_text: q.solution_text,
       topic: q.topic,
       difficulty: q.difficulty,
@@ -459,13 +467,19 @@ Return a JSON object:
       "question_text": "...",
       "question_type": "open" | "tf" | "mcq" | "coding",
       "choices": null | ["True", "False"] | ["A", "B", "C", "D"],
+      "correct_answer": null | "the exact correct choice string",
       "solution_text": "...",
       "topic": "...",
       "difficulty": "easy" | "medium" | "hard",
       "source_refs": []
     }
   ]
-}`;
+}
+
+correct_answer rules:
+- mcq: must be EXACTLY one of the strings in choices (copy it verbatim)
+- tf: must be EXACTLY "True" or "False"
+- open / coding: must be null`;
 
   const userMessage = `## Course Material (Knowledge Base)
 ${knowledgeBase.trim()}
@@ -520,6 +534,7 @@ Generate exactly 5 exam-style practice questions that specifically target the we
       question_text: q.question_text,
       question_type: q.question_type,
       choices: q.choices?.length ? q.choices : null,
+      correct_answer: q.correct_answer ?? null,
       solution_text: q.solution_text,
       topic: q.topic,
       difficulty: q.difficulty,

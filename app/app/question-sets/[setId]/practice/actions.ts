@@ -18,11 +18,32 @@ export type GradeResult = {
 export type AttemptResult = { error: string } | { grade: GradeResult } | null;
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function normalize(s: string): string {
+  return s.trim().toLowerCase().replace(/[.,!?;:]+$/, "");
+}
+
+// ---------------------------------------------------------------------------
 // Grading helpers
 // ---------------------------------------------------------------------------
 
-function gradeTf(solutionText: string, answerText: string): GradeResult {
-  const correct = solutionText.trim().toLowerCase().startsWith("true") ? "True" : "False";
+function gradeTf(
+  solutionText: string,
+  answerText: string,
+  correctAnswer: string | null
+): GradeResult {
+  let correct: string;
+
+  if (correctAnswer) {
+    // Reliable: use stored correct_answer
+    correct = correctAnswer.trim();
+  } else {
+    // Legacy fallback: infer from solution_text
+    correct = solutionText.trim().toLowerCase().startsWith("true") ? "True" : "False";
+  }
+
   const is_correct = answerText.trim() === correct;
   return {
     is_correct,
@@ -33,16 +54,29 @@ function gradeTf(solutionText: string, answerText: string): GradeResult {
   };
 }
 
-function gradeMcq(solutionText: string, answerText: string): GradeResult {
-  // solution_text starts with the correct option text (per AI prompt).
-  // Check if user's answer appears in the opening of the solution.
-  const solutionStart = solutionText.trim().slice(0, 120).toLowerCase();
-  const is_correct = solutionStart.includes(answerText.trim().toLowerCase());
+function gradeMcq(
+  solutionText: string,
+  answerText: string,
+  correctAnswer: string | null
+): GradeResult {
+  let is_correct: boolean;
+
+  if (correctAnswer) {
+    // Reliable: normalized string comparison against stored correct_answer
+    is_correct = normalize(correctAnswer) === normalize(answerText);
+  } else {
+    // Legacy fallback: check if answer appears in the opening of solution_text
+    const solutionStart = solutionText.trim().slice(0, 120).toLowerCase();
+    is_correct = solutionStart.includes(answerText.trim().toLowerCase());
+  }
+
   return {
     is_correct,
     score: is_correct ? 100 : 0,
     feedback: is_correct
       ? "Correct."
+      : correctAnswer
+      ? `Incorrect. The correct answer is "${correctAnswer}".`
       : "Incorrect. Check the solution for the right answer.",
   };
 }
@@ -138,10 +172,10 @@ export async function submitAttempt(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  // Load question for grading (also fetch topic + question_set_id for topic_stats)
+  // Load question for grading — include correct_answer for reliable MCQ/TF grading
   const { data: question } = await supabase
     .from("questions")
-    .select("question_text, question_type, choices, solution_text, topic, question_set_id")
+    .select("question_text, question_type, choices, solution_text, correct_answer, topic, question_set_id")
     .eq("id", questionId)
     .single();
 
@@ -161,11 +195,13 @@ export async function submitAttempt(
   // Grade the answer
   let grade: GradeResult;
   const qType = question.question_type as string;
+  // correct_answer may be null for old questions (before the column was added)
+  const correctAnswer = (question as { correct_answer?: string | null }).correct_answer ?? null;
 
   if (qType === "tf") {
-    grade = gradeTf(question.solution_text, answerText);
+    grade = gradeTf(question.solution_text, answerText, correctAnswer);
   } else if (qType === "mcq") {
-    grade = gradeMcq(question.solution_text, answerText);
+    grade = gradeMcq(question.solution_text, answerText, correctAnswer);
   } else {
     // open or coding — AI grading
     grade = await gradeWithAI(

@@ -22,15 +22,62 @@ export default async function AppPage() {
     .select("plan")
     .single();
 
-  // Fetch courses with question set counts
-  const { data: courses } = await supabase
-    .from("courses")
-    .select("id, title, created_at, question_sets(count)")
-    .order("created_at", { ascending: false });
+  // Parallel data fetches
+  const [
+    { data: courses },
+    { data: recentSets },
+    { count: totalAnswered },
+    { count: totalCorrect },
+    { data: allTopicStats },
+  ] = await Promise.all([
+    supabase
+      .from("courses")
+      .select("id, title, created_at, question_sets(count)")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("question_sets")
+      .select("id, title, created_at, course_id, courses(title), questions(count)")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(5),
+    supabase
+      .from("attempts")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id),
+    supabase
+      .from("attempts")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("is_correct", true),
+    supabase
+      .from("topic_stats")
+      .select("course_id, attempts, correct")
+      .eq("user_id", user.id)
+      .gte("attempts", 2),
+  ]);
+
+  const answered = totalAnswered ?? 0;
+  const correct = totalCorrect ?? 0;
+  const accuracyPct = answered > 0 ? Math.round((correct / answered) * 100) : null;
+
+  const weakTopicsCount = (allTopicStats ?? []).filter(
+    (t) => t.correct / t.attempts < 0.8
+  ).length;
+
+  // Build a weak-topic count per course for course cards
+  const weakPerCourse: Record<string, number> = {};
+  for (const t of allTopicStats ?? []) {
+    if (t.correct / t.attempts < 0.8) {
+      weakPerCourse[t.course_id] = (weakPerCourse[t.course_id] ?? 0) + 1;
+    }
+  }
+
+  const continueset = recentSets?.[0] ?? null;
 
   return (
     <main className="max-w-4xl mx-auto px-6 py-10 space-y-10">
-      {/* Page header */}
+      {/* Header */}
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
@@ -43,50 +90,162 @@ export default async function AppPage() {
         </div>
       </div>
 
-      {/* Create a course */}
-      <section>
-        <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-          New course
-        </h2>
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <CreateCourseForm action={createCourse} />
-        </div>
-      </section>
+      {/* Learning Snapshot */}
+      {answered > 0 && (
+        <section>
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+            Learning Snapshot
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard label="Questions Answered" value={String(answered)} />
+            <StatCard
+              label="Overall Accuracy"
+              value={accuracyPct !== null ? `${accuracyPct}%` : "—"}
+              highlight={
+                accuracyPct !== null
+                  ? accuracyPct >= 80
+                    ? "emerald"
+                    : accuracyPct >= 60
+                    ? "amber"
+                    : "red"
+                  : undefined
+              }
+            />
+            <StatCard
+              label="Weak Topics"
+              value={String(weakTopicsCount)}
+              highlight={weakTopicsCount > 0 ? "amber" : undefined}
+            />
+            <StatCard label="Courses" value={String(courses?.length ?? 0)} />
+          </div>
+        </section>
+      )}
 
-      {/* Courses list */}
+      {/* Continue Practicing */}
+      {continueset && (
+        <section>
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+            Continue Practicing
+          </h2>
+          <div className="bg-white rounded-xl border border-gray-100 p-5 flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-xs text-gray-400 truncate">
+                {Array.isArray(continueset.courses) && continueset.courses.length > 0
+                  ? (continueset.courses[0] as { title: string }).title
+                  : "Course"}
+              </p>
+              <p className="text-sm font-semibold text-gray-900 truncate mt-0.5">
+                {continueset.title}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                {(Array.isArray(continueset.questions) && continueset.questions.length > 0
+                  ? (continueset.questions[0] as { count: number }).count
+                  : 0)}{" "}
+                questions
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                href={`/app/question-sets/${continueset.id}/exam`}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors"
+              >
+                Exam
+              </Link>
+              <Link
+                href={`/app/question-sets/${continueset.id}/practice`}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+              >
+                Practice
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Recent Practice */}
+      {recentSets && recentSets.length > 0 && (
+        <section>
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+            Recent Practice
+          </h2>
+          <div className="divide-y divide-gray-100 rounded-xl border border-gray-100 bg-white">
+            {recentSets.map((qs) => {
+              const count =
+                Array.isArray(qs.questions) && qs.questions.length > 0
+                  ? (qs.questions[0] as { count: number }).count
+                  : 0;
+              const courseTitle =
+                Array.isArray(qs.courses) && qs.courses.length > 0
+                  ? (qs.courses[0] as { title: string }).title
+                  : "Course";
+              return (
+                <div
+                  key={qs.id}
+                  className="flex items-center justify-between px-4 py-3 gap-4"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{qs.title}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {courseTitle} &middot; {count} {count === 1 ? "question" : "questions"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Link
+                      href={`/app/question-sets/${qs.id}/exam`}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors"
+                    >
+                      Exam
+                    </Link>
+                    <Link
+                      href={`/app/question-sets/${qs.id}/practice`}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                    >
+                      Practice
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Your Courses */}
       <section>
         <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-          Your courses
+          Your Courses
         </h2>
         {!courses || courses.length === 0 ? (
-          <p className="text-sm text-gray-400">
-            No courses yet. Create one above.
-          </p>
+          <p className="text-sm text-gray-400">No courses yet. Create one below.</p>
         ) : (
           <div className="grid sm:grid-cols-2 gap-3">
             {courses.map((course) => {
               const setCount =
-                Array.isArray(course.question_sets) &&
-                course.question_sets.length > 0
+                Array.isArray(course.question_sets) && course.question_sets.length > 0
                   ? (course.question_sets[0] as { count: number }).count
                   : 0;
+              const weakCount = weakPerCourse[course.id] ?? 0;
               return (
                 <Link
                   key={course.id}
                   href={`/app/courses/${course.id}`}
                   className="group block bg-white rounded-xl border border-gray-100 p-5 hover:border-blue-200 hover:bg-blue-50/40 transition-colors"
                 >
-                  <p className="font-semibold text-gray-900 group-hover:text-gray-700 transition-colors">
+                  <p className="font-semibold text-gray-900 group-hover:text-gray-700 transition-colors truncate">
                     {course.title}
                   </p>
                   <div className="flex items-center gap-3 mt-2.5 text-xs text-gray-400">
                     <span>
-                      {setCount} {setCount === 1 ? "question set" : "question sets"}
+                      {setCount} {setCount === 1 ? "set" : "sets"}
                     </span>
-                    <span>&middot;</span>
-                    <span>
-                      {new Date(course.created_at).toLocaleDateString()}
-                    </span>
+                    {weakCount > 0 && (
+                      <>
+                        <span>&middot;</span>
+                        <span className="text-amber-500 font-medium">
+                          {weakCount} weak {weakCount === 1 ? "topic" : "topics"}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </Link>
               );
@@ -94,6 +253,44 @@ export default async function AppPage() {
           </div>
         )}
       </section>
+
+      {/* New Course */}
+      <section>
+        <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+          New Course
+        </h2>
+        <div className="bg-white rounded-xl border border-gray-100 p-5">
+          <CreateCourseForm action={createCourse} />
+        </div>
+      </section>
     </main>
+  );
+}
+
+// ── Stat card ──────────────────────────────────────────────────────────────────
+
+function StatCard({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  highlight?: "emerald" | "amber" | "red";
+}) {
+  const valueColor =
+    highlight === "emerald"
+      ? "text-emerald-600"
+      : highlight === "amber"
+      ? "text-amber-600"
+      : highlight === "red"
+      ? "text-red-600"
+      : "text-gray-900";
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 px-4 py-4">
+      <p className={`text-2xl font-bold tabular-nums ${valueColor}`}>{value}</p>
+      <p className="text-xs text-gray-400 mt-1">{label}</p>
+    </div>
   );
 }

@@ -3,6 +3,7 @@ export type Question = {
   question_text: string;
   question_type: string;
   choices: string[] | null;
+  correct_answer: string | null;
   solution_text: string;
   topic: string;
   difficulty: string;
