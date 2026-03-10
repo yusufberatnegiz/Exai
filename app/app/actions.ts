@@ -62,3 +62,27 @@ export async function createCourse(
     ...(fileErrors.length > 0 ? { fileErrors } : {}),
   };
 }
+
+export type DeleteCourseState = { error: string } | { success: true } | null;
+
+export async function deleteCourse(
+  courseId: string
+): Promise<DeleteCourseState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: "Not authenticated." };
+
+  const { error } = await supabase
+    .from("courses")
+    .delete()
+    .eq("id", courseId)
+    .eq("user_id", user.id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/app");
+  return { success: true };
+}

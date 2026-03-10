@@ -3,6 +3,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import WeakTopicForm from "./weak-topic-form";
 import { generateWeakTopicQuestions } from "./generate-actions";
+import DeleteCourseButton from "./delete-course-button";
+import { deleteCourse } from "../../actions";
 
 export default async function CourseDetailPage({
   params,
@@ -162,7 +164,10 @@ export default async function CourseDetailPage({
           <span className="text-gray-200 dark:text-zinc-700">/</span>
           <span className="text-gray-500 dark:text-zinc-400 truncate max-w-[240px]">{course.title}</span>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{course.title}</h1>
+        <div className="flex items-center justify-between gap-4 mt-1">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{course.title}</h1>
+          <DeleteCourseButton courseId={courseId} action={deleteCourse} />
+        </div>
       </div>
 
       {/* Progress summary — 4 stat chips */}
