@@ -162,7 +162,7 @@ export default async function CourseDetailPage({
           <span className="text-gray-200 dark:text-gray-700">/</span>
           <span className="text-gray-500 dark:text-gray-400 truncate max-w-[240px]">{course.title}</span>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{course.title}</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{course.title}</h1>
       </div>
 
       {/* Progress summary — 4 stat chips */}
@@ -196,13 +196,13 @@ export default async function CourseDetailPage({
           <Link
             key={s.href}
             href={s.href}
-            className={`group flex items-center gap-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 px-5 py-4 ${s.hoverClass} transition-colors`}
+            className={`group flex items-center gap-4 bg-white dark:bg-[#1a1d26] rounded-xl border border-gray-100 dark:border-[#252838] px-5 py-4 ${s.hoverClass} transition-colors`}
           >
             <div className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${s.iconBg} ${s.iconColor}`}>
               {s.icon}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm">{s.label}</p>
+              <p className="font-semibold text-gray-900 dark:text-white text-sm">{s.label}</p>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate">{s.description}</p>
             </div>
             <div className="shrink-0 flex items-center gap-3">
@@ -223,7 +223,7 @@ export default async function CourseDetailPage({
 
       {/* Topic performance bars */}
       {topicBars.length > 0 && (
-        <section className="space-y-4 pt-2 border-t border-gray-100 dark:border-gray-700">
+        <section className="space-y-4 pt-2 border-t border-gray-100 dark:border-[#252838]">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
               Topic Performance
@@ -272,7 +272,7 @@ export default async function CourseDetailPage({
       {weakCount > 0 && (
         <section className="rounded-xl border border-amber-100 dark:border-amber-900/40 bg-amber-50/50 dark:bg-amber-900/20 px-5 py-4 space-y-3">
           <div>
-            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">
               {weakCount} weak {weakCount === 1 ? "topic" : "topics"} need attention
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
@@ -289,7 +289,7 @@ export default async function CourseDetailPage({
 
       {/* Recent practice */}
       {recentSets.length > 0 && (
-        <section className="space-y-4 pt-2 border-t border-gray-100 dark:border-gray-700">
+        <section className="space-y-4 pt-2 border-t border-gray-100 dark:border-[#252838]">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
               Recent Practice
@@ -301,11 +301,11 @@ export default async function CourseDetailPage({
               View all →
             </Link>
           </div>
-          <div className="divide-y divide-gray-100 dark:divide-gray-700 rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+          <div className="divide-y divide-gray-100 dark:divide-[#252838] rounded-xl border border-gray-100 dark:border-[#252838] overflow-hidden">
             {recentSets.map((qs) => (
               <div
                 key={qs.id}
-                className="flex items-center justify-between px-4 py-3 gap-4 bg-white dark:bg-gray-800"
+                className="flex items-center justify-between px-4 py-3 gap-4 bg-white dark:bg-[#1a1d26]"
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -368,11 +368,11 @@ function StatChip({
 }) {
   const style = accent ? ACCENT_STYLES[accent] : null;
   return (
-    <div className={`rounded-xl border px-4 py-3 ${style?.bg ?? "bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700"}`}>
+    <div className={`rounded-xl border px-4 py-3 ${style?.bg ?? "bg-white dark:bg-[#1a1d26] border-gray-100 dark:border-[#252838]"}`}>
       <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">
         {label}
       </p>
-      <p className={`text-xl font-bold tabular-nums leading-tight ${style?.value ?? "text-gray-900 dark:text-gray-100"}`}>
+      <p className={`text-xl font-bold tabular-nums leading-tight ${style?.value ?? "text-gray-900 dark:text-white"}`}>
         {value}
       </p>
       <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{sub}</p>

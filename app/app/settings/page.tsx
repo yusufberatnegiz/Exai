@@ -20,16 +20,16 @@ export default async function SettingsPage() {
     <main className="max-w-2xl mx-auto px-6 py-10 space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
         <p className="mt-1 text-sm text-gray-400 dark:text-gray-500">
           Manage your account and preferences.
         </p>
       </div>
 
       {/* Appearance */}
-      <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Appearance</h2>
+      <section className="bg-white dark:bg-[#1a1d26] rounded-xl border border-gray-100 dark:border-[#252838] overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-[#252838]">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Appearance</h2>
         </div>
         <div className="px-5 py-5">
           <div className="flex items-center justify-between gap-6">
@@ -45,11 +45,11 @@ export default async function SettingsPage() {
       </section>
 
       {/* Account */}
-      <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Account</h2>
+      <section className="bg-white dark:bg-[#1a1d26] rounded-xl border border-gray-100 dark:border-[#252838] overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-[#252838]">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Account</h2>
         </div>
-        <div className="divide-y divide-gray-100 dark:divide-gray-700">
+        <div className="divide-y divide-gray-100 dark:divide-[#252838]">
           <div className="px-5 py-4 flex items-center justify-between">
             <p className="text-sm text-gray-500 dark:text-gray-400">Email</p>
             <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
