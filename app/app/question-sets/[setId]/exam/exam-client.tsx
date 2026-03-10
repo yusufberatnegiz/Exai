@@ -5,9 +5,9 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import type { AttemptResult, GradeResult } from "../practice/actions";
-import type { CodingEditorProps } from "../practice/coding-editor";
+import type { CodingEditorProps } from "@/components/practice/coding-editor";
 
-const CodingEditorDynamic = dynamic(() => import("../practice/coding-editor"), {
+const CodingEditorDynamic = dynamic(() => import("@/components/practice/coding-editor"), {
   ssr: false,
   loading: () => (
     <div className="h-[300px] rounded-xl border border-gray-700 bg-gray-900 flex items-center justify-center text-sm text-gray-500">
