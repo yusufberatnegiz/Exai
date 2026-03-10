@@ -7,6 +7,57 @@ import { useState, useEffect } from "react";
 
 type Course = { id: string; title: string };
 
+// ── Icons ─────────────────────────────────────────────────────────────────────
+
+function IconDashboard() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1.5" y="1.5" width="5" height="5" rx="1" />
+      <rect x="9.5" y="1.5" width="5" height="5" rx="1" />
+      <rect x="1.5" y="9.5" width="5" height="5" rx="1" />
+      <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
+    </svg>
+  );
+}
+
+function IconSettings() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="2.5" />
+      <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06" />
+    </svg>
+  );
+}
+
+function IconSignOut() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" />
+      <polyline points="10 11 14 8 10 5" />
+      <line x1="14" y1="8" x2="6" y2="8" />
+    </svg>
+  );
+}
+
+function IconCollapse() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 2 5 6.5 9 11" />
+    </svg>
+  );
+}
+
+// ── Nav item types ────────────────────────────────────────────────────────────
+
+type NavItem = {
+  label: string;
+  href: string;
+  icon: React.ReactNode;
+  exactMatch?: boolean;
+};
+
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+
 export default function Sidebar({
   userEmail,
   courses,
@@ -38,26 +89,36 @@ export default function Sidebar({
     router.refresh();
   }
 
-  const navItems = [{ label: "Dashboard", href: "/app" }];
+  const navItems: NavItem[] = [
+    { label: "Dashboard", href: "/app", icon: <IconDashboard />, exactMatch: true },
+    { label: "Settings", href: "/app/settings", icon: <IconSettings /> },
+  ];
+
   const initial = userEmail?.slice(0, 1).toUpperCase() ?? "?";
 
   if (!mounted) {
-    return <aside className="w-56 shrink-0 bg-white border-r border-gray-100 h-screen sticky top-0" />;
+    return (
+      <aside className="w-56 shrink-0 bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800 h-screen sticky top-0" />
+    );
   }
 
   return (
     <aside
-      className={`shrink-0 flex flex-col bg-white border-r border-gray-100 h-screen sticky top-0 transition-[width] duration-200 ease-in-out ${
+      className={`shrink-0 flex flex-col bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800 h-screen sticky top-0 transition-[width] duration-200 ease-in-out ${
         collapsed ? "w-14" : "w-56"
       }`}
     >
-      {/* ── Logo row ──────────────────────────────────────────────────── */}
-      <div className={`h-14 flex items-center shrink-0 border-b border-gray-100 ${collapsed ? "justify-center px-2" : "px-4"}`}>
+      {/* ── Logo row ─────────────────────────────────────────────────────── */}
+      <div
+        className={`h-14 flex items-center shrink-0 border-b border-gray-100 dark:border-gray-800 ${
+          collapsed ? "justify-center px-2" : "px-4"
+        }`}
+      >
         {collapsed ? (
           <button
             onClick={toggle}
             title="Expand sidebar"
-            className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
           >
             <img src="/logo.png" alt="Exai" className="h-5 w-5 object-contain" />
           </button>
@@ -65,28 +126,31 @@ export default function Sidebar({
           <>
             <Link href="/app" className="flex items-center gap-2.5 flex-1 min-w-0">
               <img src="/logo.png" alt="Exai" className="h-6 w-6 object-contain shrink-0" />
-              <span className="text-[15px] font-semibold text-gray-900 tracking-tight">Exai</span>
+              <span className="text-[15px] font-semibold text-gray-900 dark:text-gray-50 tracking-tight">
+                Exai
+              </span>
             </Link>
             <button
               onClick={toggle}
               title="Collapse sidebar"
-              className="shrink-0 flex items-center justify-center w-7 h-7 rounded-md text-gray-300 hover:text-gray-500 hover:bg-gray-50 transition-colors"
+              className="shrink-0 flex items-center justify-center w-7 h-7 rounded-md text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="9 2 5 6.5 9 11" />
-              </svg>
+              <IconCollapse />
             </button>
           </>
         )}
       </div>
 
-      {/* ── Nav ───────────────────────────────────────────────────────── */}
+      {/* ── Nav ──────────────────────────────────────────────────────────── */}
       <nav className={`flex-1 overflow-y-auto py-3 ${collapsed ? "px-2" : "px-2"}`}>
 
-        {/* Primary nav items */}
+        {/* Primary nav */}
         <div className="space-y-0.5">
           {navItems.map((item) => {
-            const active = pathname === item.href;
+            const active = item.exactMatch
+              ? pathname === item.href
+              : pathname.startsWith(item.href);
+
             if (collapsed) {
               return (
                 <Link
@@ -95,16 +159,11 @@ export default function Sidebar({
                   title={item.label}
                   className={`flex items-center justify-center w-9 h-9 mx-auto rounded-lg transition-colors ${
                     active
-                      ? "bg-blue-50 text-blue-600"
-                      : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
+                      ? "bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400"
+                      : "text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-600 dark:hover:text-gray-300"
                   }`}
                 >
-                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="1.5" y="1.5" width="5" height="5" rx="1" />
-                    <rect x="9.5" y="1.5" width="5" height="5" rx="1" />
-                    <rect x="1.5" y="9.5" width="5" height="5" rx="1" />
-                    <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
-                  </svg>
+                  {item.icon}
                 </Link>
               );
             }
@@ -114,16 +173,11 @@ export default function Sidebar({
                 href={item.href}
                 className={`flex items-center gap-2.5 px-3 py-[7px] rounded-lg text-[13.5px] font-medium transition-colors ${
                   active
-                    ? "bg-blue-50 text-blue-700"
-                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"
+                    ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400"
+                    : "text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-800 dark:hover:text-gray-200"
                 }`}
               >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 opacity-70">
-                  <rect x="1.5" y="1.5" width="5" height="5" rx="1" />
-                  <rect x="9.5" y="1.5" width="5" height="5" rx="1" />
-                  <rect x="1.5" y="9.5" width="5" height="5" rx="1" />
-                  <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
-                </svg>
+                <span className="shrink-0 opacity-70">{item.icon}</span>
                 {item.label}
               </Link>
             );
@@ -134,7 +188,7 @@ export default function Sidebar({
         {courses.length > 0 && (
           <div className="mt-5">
             {!collapsed && (
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-3 mb-1.5">
+              <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-widest px-3 mb-1.5">
                 Courses
               </p>
             )}
@@ -149,8 +203,8 @@ export default function Sidebar({
                       title={course.title}
                       className={`flex items-center justify-center w-9 h-8 mx-auto rounded-lg transition-colors ${
                         active
-                          ? "bg-blue-50 text-blue-600"
-                          : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
+                          ? "bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400"
+                          : "text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-600 dark:hover:text-gray-300"
                       }`}
                     >
                       <span className="text-[11px] font-bold uppercase leading-none">
@@ -165,8 +219,8 @@ export default function Sidebar({
                     href={`/app/courses/${course.id}`}
                     className={`flex items-center px-3 py-[6px] rounded-lg text-[13px] transition-colors min-w-0 ${
                       active
-                        ? "bg-blue-50 text-blue-700 font-medium"
-                        : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"
+                        ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 font-medium"
+                        : "text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-800 dark:hover:text-gray-200"
                     }`}
                   >
                     <span className="truncate">{course.title}</span>
@@ -178,43 +232,36 @@ export default function Sidebar({
         )}
       </nav>
 
-      {/* ── Account block ─────────────────────────────────────────────── */}
-      <div className={`border-t border-gray-100 shrink-0 ${collapsed ? "p-2" : "px-3 py-3"}`}>
+      {/* ── Account block ────────────────────────────────────────────────── */}
+      <div
+        className={`border-t border-gray-100 dark:border-gray-800 shrink-0 ${
+          collapsed ? "p-2" : "px-3 py-3"
+        }`}
+      >
         {collapsed ? (
           <button
             onClick={handleSignOut}
             title="Sign out"
-            className="flex items-center justify-center w-9 h-9 mx-auto rounded-lg text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-colors"
+            className="flex items-center justify-center w-9 h-9 mx-auto rounded-lg text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
           >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" />
-              <polyline points="10 11 14 8 10 5" />
-              <line x1="14" y1="8" x2="6" y2="8" />
-            </svg>
+            <IconSignOut />
           </button>
         ) : (
           <div className="flex items-center gap-2.5 px-1">
-            {/* Avatar */}
-            <div className="shrink-0 w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center">
-              <span className="text-[10px] font-semibold text-gray-500 uppercase leading-none">
+            <div className="shrink-0 w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+              <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase leading-none">
                 {initial}
               </span>
             </div>
-            {/* Email */}
-            <p className="flex-1 text-[12px] text-gray-400 truncate min-w-0">
+            <p className="flex-1 text-[12px] text-gray-400 dark:text-gray-500 truncate min-w-0">
               {userEmail}
             </p>
-            {/* Sign out */}
             <button
               onClick={handleSignOut}
               title="Sign out"
-              className="shrink-0 flex items-center justify-center w-6 h-6 rounded-md text-gray-300 hover:text-gray-500 hover:bg-gray-50 transition-colors"
+              className="shrink-0 flex items-center justify-center w-6 h-6 rounded-md text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" />
-                <polyline points="10 11 14 8 10 5" />
-                <line x1="14" y1="8" x2="6" y2="8" />
-              </svg>
+              <IconSignOut />
             </button>
           </div>
         )}

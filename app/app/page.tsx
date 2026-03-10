@@ -65,7 +65,6 @@ export default async function AppPage() {
     (t) => t.correct / t.attempts < 0.8
   ).length;
 
-  // Build a weak-topic count per course for course cards
   const weakPerCourse: Record<string, number> = {};
   for (const t of allTopicStats ?? []) {
     if (t.correct / t.attempts < 0.8) {
@@ -80,10 +79,10 @@ export default async function AppPage() {
       {/* Header */}
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="mt-1 text-sm text-gray-400">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Dashboard</h1>
+          <p className="mt-1 text-sm text-gray-400 dark:text-gray-500">
             Plan:{" "}
-            <span className="text-gray-600 font-medium capitalize">
+            <span className="text-gray-600 dark:text-gray-300 font-medium capitalize">
               {profile?.plan ?? "free"}
             </span>
           </p>
@@ -93,7 +92,7 @@ export default async function AppPage() {
       {/* Learning Snapshot */}
       {answered > 0 && (
         <section>
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+          <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-3">
             Learning Snapshot
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -124,20 +123,20 @@ export default async function AppPage() {
       {/* Continue Practicing */}
       {continueset && (
         <section>
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+          <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-3">
             Continue Practicing
           </h2>
-          <div className="bg-white rounded-xl border border-gray-100 p-5 flex items-center justify-between gap-4">
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-xs text-gray-400 truncate">
+              <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
                 {Array.isArray(continueset.courses) && continueset.courses.length > 0
                   ? (continueset.courses[0] as { title: string }).title
                   : "Course"}
               </p>
-              <p className="text-sm font-semibold text-gray-900 truncate mt-0.5">
+              <p className="text-sm font-semibold text-gray-900 dark:text-gray-50 truncate mt-0.5">
                 {continueset.title}
               </p>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                 {(Array.isArray(continueset.questions) && continueset.questions.length > 0
                   ? (continueset.questions[0] as { count: number }).count
                   : 0)}{" "}
@@ -147,7 +146,7 @@ export default async function AppPage() {
             <div className="flex items-center gap-2 shrink-0">
               <Link
                 href={`/app/question-sets/${continueset.id}/exam`}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors"
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-900 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
               >
                 Exam
               </Link>
@@ -165,10 +164,10 @@ export default async function AppPage() {
       {/* Recent Practice */}
       {recentSets && recentSets.length > 0 && (
         <section>
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+          <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-3">
             Recent Practice
           </h2>
-          <div className="divide-y divide-gray-100 rounded-xl border border-gray-100 bg-white">
+          <div className="divide-y divide-gray-100 dark:divide-gray-800 rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
             {recentSets.map((qs) => {
               const count =
                 Array.isArray(qs.questions) && qs.questions.length > 0
@@ -184,15 +183,17 @@ export default async function AppPage() {
                   className="flex items-center justify-between px-4 py-3 gap-4"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{qs.title}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                      {qs.title}
+                    </p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                       {courseTitle} &middot; {count} {count === 1 ? "question" : "questions"}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <Link
                       href={`/app/question-sets/${qs.id}/exam`}
-                      className="text-xs font-medium px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors"
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-900 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
                     >
                       Exam
                     </Link>
@@ -212,11 +213,13 @@ export default async function AppPage() {
 
       {/* Your Courses */}
       <section>
-        <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+        <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-3">
           Your Courses
         </h2>
         {!courses || courses.length === 0 ? (
-          <p className="text-sm text-gray-400">No courses yet. Create one below.</p>
+          <p className="text-sm text-gray-400 dark:text-gray-500">
+            No courses yet. Create one below.
+          </p>
         ) : (
           <div className="grid sm:grid-cols-2 gap-3">
             {courses.map((course) => {
@@ -229,12 +232,12 @@ export default async function AppPage() {
                 <Link
                   key={course.id}
                   href={`/app/courses/${course.id}`}
-                  className="group block bg-white rounded-xl border border-gray-100 p-5 hover:border-blue-200 hover:bg-blue-50/40 transition-colors"
+                  className="group block bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 hover:border-blue-200 dark:hover:border-blue-800 hover:bg-blue-50/40 dark:hover:bg-blue-950/30 transition-colors"
                 >
-                  <p className="font-semibold text-gray-900 group-hover:text-gray-700 transition-colors truncate">
+                  <p className="font-semibold text-gray-900 dark:text-gray-50 group-hover:text-gray-700 dark:group-hover:text-gray-200 transition-colors truncate">
                     {course.title}
                   </p>
-                  <div className="flex items-center gap-3 mt-2.5 text-xs text-gray-400">
+                  <div className="flex items-center gap-3 mt-2.5 text-xs text-gray-400 dark:text-gray-500">
                     <span>
                       {setCount} {setCount === 1 ? "set" : "sets"}
                     </span>
@@ -256,10 +259,10 @@ export default async function AppPage() {
 
       {/* New Course */}
       <section>
-        <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+        <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-3">
           New Course
         </h2>
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5">
           <CreateCourseForm action={createCourse} />
         </div>
       </section>
@@ -285,12 +288,12 @@ function StatCard({
       ? "text-amber-600"
       : highlight === "red"
       ? "text-red-600"
-      : "text-gray-900";
+      : "text-gray-900 dark:text-gray-50";
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 px-4 py-4">
+    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 px-4 py-4">
       <p className={`text-2xl font-bold tabular-nums ${valueColor}`}>{value}</p>
-      <p className="text-xs text-gray-400 mt-1">{label}</p>
+      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{label}</p>
     </div>
   );
 }

@@ -221,7 +221,7 @@ export default function PracticeClient({
   const needsAiGrade = q.question_type === "open" || q.question_type === "coding";
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col">
       <PracticeNav questionSet={questionSet} index={index} total={total} />
 
       <main className="flex-1 flex flex-col items-center px-4 sm:px-6 py-8">
