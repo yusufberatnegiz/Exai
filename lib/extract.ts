@@ -81,7 +81,8 @@ export async function extractTextFromPdf(
     const pdfParse = (await import("pdf-parse")).default;
     const data = await pdfParse(Buffer.from(buffer));
     return data.text ?? "";
-  } catch {
+  } catch (err) {
+    console.error("PDF extraction error:", err);
     return "";
   }
 }
@@ -147,7 +148,8 @@ export async function extractTextWithOCR(
     });
 
     return response.choices[0]?.message?.content ?? "";
-  } catch {
+  } catch (err) {
+    console.error("OCR extraction error:", err);
     return "";
   }
 }
@@ -185,7 +187,8 @@ export async function extractTextFromPptx(
     }
 
     return slideTexts.join("\n\n");
-  } catch {
+  } catch (err) {
+    console.error("PPTX extraction error:", err);
     return "";
   }
 }

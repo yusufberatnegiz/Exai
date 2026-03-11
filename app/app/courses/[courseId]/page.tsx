@@ -4,7 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import WeakTopicForm from "./weak-topic-form";
 import { generateWeakTopicQuestions } from "./generate-actions";
 import DeleteCourseButton from "./delete-course-button";
+import UpgradeModal from "./upgrade-modal";
 import { deleteCourse } from "../../actions";
+import { upgradeCourse } from "./actions";
 
 export default async function CourseDetailPage({
   params,
@@ -20,14 +22,20 @@ export default async function CourseDetailPage({
 
   if (!user) redirect("/auth");
 
-  const { data: course } = await supabase
-    .from("courses")
-    .select("id, title")
-    .eq("id", courseId)
-    .eq("user_id", user.id)
-    .single();
+  const [{ data: course }, { data: profile }] = await Promise.all([
+    supabase
+      .from("courses")
+      .select("id, title, is_premium")
+      .eq("id", courseId)
+      .eq("user_id", user.id)
+      .single(),
+    supabase.from("profiles").select("plan").eq("user_id", user.id).single(),
+  ]);
 
   if (!course) notFound();
+
+  const isAccountPremium = profile?.plan != null && profile.plan !== "free";
+  const isPremium = isAccountPremium || (course.is_premium ?? false);
 
   const [
     { count: docCount },
@@ -165,7 +173,10 @@ export default async function CourseDetailPage({
           <span className="text-gray-500 dark:text-zinc-400 truncate max-w-[240px]">{course.title}</span>
         </div>
         <div className="flex items-center justify-between gap-4 mt-1">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{course.title}</h1>
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white truncate">{course.title}</h1>
+            <UpgradeModal courseId={courseId} isPremium={isPremium} action={upgradeCourse} />
+          </div>
           <DeleteCourseButton courseId={courseId} action={deleteCourse} />
         </div>
       </div>

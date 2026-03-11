@@ -35,6 +35,17 @@ export async function createCourse(
     return { error: "Not authenticated." };
   }
 
+  // Free-plan course limit — premium users bypass
+  const FREE_PLAN_MAX_COURSES = 2;
+  const [{ data: profile }, { count: courseCount }] = await Promise.all([
+    supabase.from("profiles").select("plan").eq("user_id", user.id).single(),
+    supabase.from("courses").select("*", { count: "exact", head: true }).eq("user_id", user.id),
+  ]);
+  const isPremiumUser = profile?.plan != null && profile.plan !== "free";
+  if (!isPremiumUser && (courseCount ?? 0) >= FREE_PLAN_MAX_COURSES) {
+    return { error: `Free plan is limited to ${FREE_PLAN_MAX_COURSES} courses. Upgrade to create more.` };
+  }
+
   const { data: course, error } = await supabase
     .from("courses")
     .insert({ title: parsed.data.title, user_id: user.id })
@@ -42,7 +53,8 @@ export async function createCourse(
     .single();
 
   if (error || !course) {
-    return { error: error?.message ?? "Failed to create course." };
+    console.error("Course creation error:", error);
+    return { error: "Could not create course. Please try again." };
   }
 
   // Optional: process any source files uploaded during course creation
@@ -51,7 +63,8 @@ export async function createCourse(
 
   const fileErrors: string[] = [];
   for (const file of validFiles) {
-    const err = await processSourceFile(supabase, file, user.id, course.id);
+    // New courses always start as free (is_premium = false)
+    const err = await processSourceFile(supabase, file, user.id, course.id, false);
     if (err) fileErrors.push(err);
   }
 

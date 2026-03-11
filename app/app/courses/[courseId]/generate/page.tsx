@@ -18,14 +18,20 @@ export default async function GeneratePage({
 
   if (!user) redirect("/auth");
 
-  const { data: course } = await supabase
-    .from("courses")
-    .select("id, title")
-    .eq("id", courseId)
-    .eq("user_id", user.id)
-    .single();
+  const [{ data: course }, { data: profile }] = await Promise.all([
+    supabase
+      .from("courses")
+      .select("id, title, is_premium")
+      .eq("id", courseId)
+      .eq("user_id", user.id)
+      .single(),
+    supabase.from("profiles").select("plan").eq("user_id", user.id).single(),
+  ]);
 
   if (!course) notFound();
+
+  const isAccountPremium = profile?.plan != null && profile.plan !== "free";
+  const isPremium = isAccountPremium || (course.is_premium ?? false);
 
   return (
     <main className="max-w-3xl mx-auto px-6 py-10 space-y-8">
@@ -54,7 +60,7 @@ export default async function GeneratePage({
 
       {/* Generate form */}
       <section className="space-y-4 pt-6 border-t border-gray-100 dark:border-zinc-700">
-        <GenerateForm courseId={courseId} action={generateQuestions} />
+        <GenerateForm courseId={courseId} action={generateQuestions} isPremium={isPremium} />
       </section>
     </main>
   );

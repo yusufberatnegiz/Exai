@@ -7,10 +7,11 @@ import type { GenerateState } from "./generate-actions";
 
 type Props = {
   courseId: string;
+  isPremium?: boolean;
   action: (prevState: GenerateState, formData: FormData) => Promise<GenerateState>;
 };
 
-export default function GenerateForm({ courseId, action }: Props) {
+export default function GenerateForm({ courseId, isPremium = false, action }: Props) {
   const [state, setState] = useState<GenerateState>(null);
   const [isPending, startTransition] = useTransition();
   const [fileNames, setFileNames] = useState<string[]>([]);
@@ -71,7 +72,7 @@ export default function GenerateForm({ courseId, action }: Props) {
             setFileNames(Array.from(e.target.files ?? []).map((f) => f.name))
           }
         />
-        <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG — max 10 MB each</p>
+        <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG - max 10 MB each</p>
       </div>
 
       {/* Divider */}
@@ -110,11 +111,18 @@ export default function GenerateForm({ courseId, action }: Props) {
 
       {/* Number of questions */}
       <div className="flex items-center justify-between">
-        <label className="text-xs font-medium text-gray-500">Number of questions</label>
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-medium text-gray-500">Number of questions</label>
+          {isPremium && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+              Up to 30
+            </span>
+          )}
+        </div>
         <CountStepper
           value={total}
           min={1}
-          max={10}
+          max={isPremium ? 30 : 10}
           disabled={isPending}
           onChange={setTotal}
         />

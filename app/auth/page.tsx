@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +17,24 @@ import {
 type Mode = "signin" | "signup";
 
 export default function AuthPage() {
+  return (
+    <Suspense>
+      <AuthForm />
+    </Suspense>
+  );
+}
+
+function AuthForm() {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("signin");
+  const searchParams = useSearchParams();
+  const [mode, setMode] = useState<Mode>(
+    searchParams.get("mode") === "signup" ? "signup" : "signin"
+  );
+
+  useEffect(() => {
+    const m = searchParams.get("mode");
+    if (m === "signup" || m === "signin") setMode(m);
+  }, [searchParams]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -70,10 +86,10 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-zinc-950 flex flex-col items-center justify-center px-6">
       <Link href="/" className="mb-8 flex items-center gap-2">
         <img src="/logo.png" alt="Exai" className="h-8 w-8 object-contain" />
-        <span className="font-semibold text-gray-900 tracking-tight text-lg">Exai</span>
+        <span className="font-semibold text-gray-900 dark:text-white tracking-tight text-lg">Exai</span>
       </Link>
 
       <Card className="w-full max-w-sm">

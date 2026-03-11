@@ -126,7 +126,7 @@ export default async function TopicsPage({
           </div>
 
           {weakTopics.length === 0 ? (
-            <p className="text-sm text-gray-400 dark:text-zinc-400">No weak topics — keep it up!</p>
+            <p className="text-sm text-gray-400 dark:text-zinc-400">No weak topics - keep it up!</p>
           ) : (
             <div className="space-y-3">
               {weakTopics.map((t) => {
@@ -177,7 +177,7 @@ export default async function TopicsPage({
           </div>
 
           {strongTopics.length === 0 ? (
-            <p className="text-sm text-gray-400 dark:text-zinc-400">No strong topics yet — keep practising!</p>
+            <p className="text-sm text-gray-400 dark:text-zinc-400">No strong topics yet - keep practising!</p>
           ) : (
             <div className="space-y-3">
               {strongTopics.map((t) => {

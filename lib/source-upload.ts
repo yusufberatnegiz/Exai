@@ -122,7 +122,7 @@ async function runExtraction({
       const nonWsChars = normalized.replace(/\s/g, "").length;
       if (nonWsChars < 20) {
         throw new Error(
-          `DOCX has no extractable text (raw: ${extracted.length} chars, non-whitespace: ${nonWsChars}).`
+          "This file could not be processed. Try uploading another file."
         );
       }
       text = normalized;
@@ -140,7 +140,7 @@ async function runExtraction({
       }
       text = extracted;
     } else {
-      throw new Error(`Unsupported file type: ${mimeType}`);
+      throw new Error("Unsupported file type. Use .pdf, .docx, .pptx, .jpg, or .png.");
     }
 
     const chunks = chunkText(sanitizeExtractedText(text));
@@ -157,20 +157,24 @@ async function runExtraction({
             metadata: {},
           }))
         );
-      if (chunksError) throw new Error(chunksError.message);
+      if (chunksError) {
+        console.error("Chunk insert error:", chunksError);
+        throw new Error("This file could not be processed. Try uploading another file.");
+      }
     }
 
     await supabase.from("documents").update({ status: "ready" }).eq("id", documentId);
     await supabase.from("jobs").update({ status: "done" }).eq("id", jobId);
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : "Extraction failed";
+    const userMsg = err instanceof Error ? err.message : "This file could not be processed. Try uploading another file.";
+    console.error("File extraction error:", err);
     await supabase
       .from("documents")
-      .update({ status: "failed", error: errorMsg })
+      .update({ status: "failed", error: userMsg })
       .eq("id", documentId);
     await supabase
       .from("jobs")
-      .update({ status: "failed", error: errorMsg })
+      .update({ status: "failed", error: userMsg })
       .eq("id", jobId);
   }
 }
@@ -180,13 +184,17 @@ async function runExtraction({
 // Returns an error string on failure, null on success.
 // ---------------------------------------------------------------------------
 
+// Free-plan file-size limit. Premium courses bypass this.
+const FREE_PLAN_MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
+
 export async function processSourceFile(
   supabase: Supabase,
   file: File,
   userId: string,
-  courseId: string
+  courseId: string,
+  isPremium = false
 ): Promise<string | null> {
-  if (file.size > 10 * 1024 * 1024) {
+  if (!isPremium && file.size > FREE_PLAN_MAX_FILE_BYTES) {
     return `${file.name}: exceeds 10 MB limit.`;
   }
 
@@ -203,7 +211,8 @@ export async function processSourceFile(
     .from("exam-uploads")
     .upload(storagePath, content, { contentType: mimeType });
   if (storageError) {
-    return `${file.name}: storage error: ${storageError.message}`;
+    console.error("Upload storage error:", storageError);
+    return `${file.name}: could not be uploaded. Please try again.`;
   }
 
   const { error: docError } = await supabase.from("documents").insert({
@@ -216,8 +225,9 @@ export async function processSourceFile(
     status: "uploaded",
   });
   if (docError) {
+    console.error("Document insert error:", docError);
     await supabase.storage.from("exam-uploads").remove([storagePath]);
-    return `${file.name}: database error: ${docError.message}`;
+    return `${file.name}: could not be saved. Please try again.`;
   }
 
   const jobId = randomUUID();
@@ -231,10 +241,11 @@ export async function processSourceFile(
     error: null,
   });
   if (jobError) {
+    console.error("Job creation error:", jobError);
     // Roll back: storage object and documents row are now orphaned without a job.
     await supabase.storage.from("exam-uploads").remove([storagePath]);
     await supabase.from("documents").delete().eq("id", documentId);
-    return `${file.name}: job creation failed: ${jobError.message}`;
+    return `${file.name}: could not be queued for processing. Please try again.`;
   }
 
   await runExtraction({ supabase, documentId, userId, mimeType, content, jobId });

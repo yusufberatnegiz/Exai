@@ -16,8 +16,8 @@ export default async function AppPage() {
   const { data: profile } = await supabase
     .from("profiles")
     .upsert(
-      { id: user.id, ...(user.email ? { email: user.email } : {}) },
-      { onConflict: "id" }
+      { user_id: user.id, ...(user.email ? { email: user.email } : {}) },
+      { onConflict: "user_id" }
     )
     .select("plan")
     .single();
@@ -232,12 +232,12 @@ export default async function AppPage() {
                 Upload course materials and generate practice questions for your exams.
               </p>
             </div>
-            <a
-              href="#new-course"
+            <Link
+              href="/app/new-course"
               className="mt-1 text-sm font-medium px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
             >
               Create Course
-            </a>
+            </Link>
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 gap-3">

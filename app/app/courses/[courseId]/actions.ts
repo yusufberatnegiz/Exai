@@ -5,6 +5,38 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { processSourceFile } from "@/lib/source-upload";
 
+export type UpgradeCourseState = { error: string } | { success: true } | null;
+
+/**
+ * Placeholder upgrade action — simulates payment by setting is_premium = true.
+ * Will be replaced by a real Stripe checkout flow in the billing milestone.
+ */
+export async function upgradeCourse(courseId: string): Promise<UpgradeCourseState> {
+  if (!z.string().uuid().safeParse(courseId).success) {
+    return { error: "Invalid course." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { error } = await supabase
+    .from("courses")
+    .update({ is_premium: true })
+    .eq("id", courseId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    console.error("Course upgrade error:", error);
+    return { error: "Something went wrong. Please try again." };
+  }
+
+  revalidatePath(`/app/courses/${courseId}`);
+  return { success: true };
+}
+
 export type UploadState = { error: string } | { success: true } | null;
 export type DeleteDocState = { error: string } | { success: true } | null;
 
@@ -55,6 +87,7 @@ export async function uploadSourceMaterials(
   _prevState: UploadState,
   formData: FormData
 ): Promise<UploadState> {
+  try {
   const courseId = formData.get("courseId") as string;
 
   if (!z.string().uuid().safeParse(courseId).success) {
@@ -74,29 +107,37 @@ export async function uploadSourceMaterials(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  const { data: course } = await supabase
-    .from("courses")
-    .select("id")
-    .eq("id", courseId)
-    .eq("user_id", user.id)
-    .single();
+  const [{ data: course }, { data: profile }] = await Promise.all([
+    supabase
+      .from("courses")
+      .select("id, is_premium")
+      .eq("id", courseId)
+      .eq("user_id", user.id)
+      .single(),
+    supabase.from("profiles").select("plan").eq("user_id", user.id).single(),
+  ]);
   if (!course) return { error: "Course not found." };
+
+  const isAccountPremium = profile?.plan != null && profile.plan !== "free";
+  const isPremium = isAccountPremium || (course.is_premium ?? false);
 
   const errors: string[] = [];
   for (const file of validFiles) {
-    const err = await processSourceFile(supabase, file, user.id, courseId);
+    const err = await processSourceFile(supabase, file, user.id, courseId, isPremium);
     if (err) errors.push(err);
   }
 
   revalidatePath(`/app/courses/${courseId}`);
 
   if (errors.length === validFiles.length) {
-    // All files failed
     return { error: errors.join("\n") };
   }
   if (errors.length > 0) {
-    // Partial success
-    return { error: `Some files failed:\n${errors.join("\n")}` };
+    return { error: `Some files could not be uploaded:\n${errors.join("\n")}` };
   }
   return { success: true };
+  } catch (err) {
+    console.error("Upload error:", err);
+    return { error: "Something went wrong. Please try again." };
+  }
 }

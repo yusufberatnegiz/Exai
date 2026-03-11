@@ -28,9 +28,15 @@ const QuestionSchema = z.object({
   source_refs: z.array(z.string()),
 });
 
-const AIResponseSchema = z.object({
-  questions: z.array(QuestionSchema).min(1).max(10),
-});
+// Free-plan cap. Premium courses get a higher ceiling.
+const FREE_PLAN_MAX_QUESTIONS = 10;
+const PREMIUM_MAX_QUESTIONS = 30;
+
+function makeAIResponseSchema(maxQuestions: number) {
+  return z.object({
+    questions: z.array(QuestionSchema).min(1).max(maxQuestions),
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Instruction parser — extracts explicit type counts from free-text instructions
@@ -169,15 +175,11 @@ export async function generateQuestions(
   _prevState: GenerateState,
   formData: FormData
 ): Promise<GenerateState> {
+  try {
   const courseId = formData.get("courseId") as string;
   const examFiles = formData.getAll("examFiles") as File[];
   const pastedText = ((formData.get("pastedText") as string) ?? "").trim();
   const instructions = ((formData.get("instructions") as string) ?? "").trim().slice(0, 500);
-  const total = Math.min(10, Math.max(1, parseInt(formData.get("total") as string) || 5));
-
-  // Parse explicit type counts from instructions (e.g. "2 tf 2 mcq 1 coding 1 open")
-  const parsedCounts = parseTypeCounts(instructions, total);
-  const effectiveTotal = parsedCounts ? parsedCounts.total : total;
 
   if (!z.string().uuid().safeParse(courseId).success) {
     return { error: "Invalid course." };
@@ -186,7 +188,7 @@ export async function generateQuestions(
   const validExamFiles = examFiles.filter((f) => f instanceof File && f.size > 0);
 
   if (validExamFiles.length === 0 && !pastedText) {
-    return { error: "Provide a past exam file or paste exam text — at least one is required." };
+    return { error: "Provide a past exam file or paste exam text - at least one is required." };
   }
 
   const supabase = await createClient();
@@ -195,13 +197,25 @@ export async function generateQuestions(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  const { data: course } = await supabase
-    .from("courses")
-    .select("id, title")
-    .eq("id", courseId)
-    .eq("user_id", user.id)
-    .single();
+  const [{ data: course }, { data: profile }] = await Promise.all([
+    supabase
+      .from("courses")
+      .select("id, title, is_premium")
+      .eq("id", courseId)
+      .eq("user_id", user.id)
+      .single(),
+    supabase.from("profiles").select("plan").eq("user_id", user.id).single(),
+  ]);
   if (!course) return { error: "Course not found." };
+
+  const isAccountPremium = profile?.plan != null && profile.plan !== "free";
+  const isPremium = isAccountPremium || (course.is_premium ?? false);
+  const maxQuestions = isPremium ? PREMIUM_MAX_QUESTIONS : FREE_PLAN_MAX_QUESTIONS;
+  const total = Math.min(maxQuestions, Math.max(1, parseInt(formData.get("total") as string) || 5));
+
+  // Parse explicit type counts from instructions (e.g. "2 tf 2 mcq 1 coding 1 open")
+  const parsedCounts = parseTypeCounts(instructions, total);
+  const effectiveTotal = parsedCounts ? parsedCounts.total : total;
 
   // ---------------------------------------------------------------------------
   // 1. Gather source material chunks (knowledge base — optional)
@@ -291,7 +305,10 @@ export async function generateQuestions(
     course_id: courseId,
     title,
   });
-  if (qsError) return { error: `Could not create question set: ${qsError.message}` };
+  if (qsError) {
+    console.error("Question set creation error:", qsError);
+    return { error: "Something went wrong. Please try again." };
+  }
 
   // ---------------------------------------------------------------------------
   // 5. Call OpenAI
@@ -299,6 +316,7 @@ export async function generateQuestions(
 
   const openai = new OpenAI({ apiKey: process.env.AI_API_KEY });
 
+  const AIResponseSchema = makeAIResponseSchema(maxQuestions);
   let parsed: z.infer<typeof AIResponseSchema>;
   try {
     const completion = await openai.chat.completions.create({
@@ -320,9 +338,9 @@ export async function generateQuestions(
       if (err) throw new Error(err);
     }
   } catch (err) {
+    console.error("Generation error:", err);
     await supabase.from("question_sets").delete().eq("id", questionSetId);
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    return { error: `AI generation failed: ${msg}` };
+    return { error: "Question generation is temporarily unavailable. Please try again." };
   }
 
   // ---------------------------------------------------------------------------
@@ -346,12 +364,17 @@ export async function generateQuestions(
   );
 
   if (qError) {
+    console.error("Question insert error:", qError);
     await supabase.from("question_sets").delete().eq("id", questionSetId);
-    return { error: `Failed to save questions: ${qError.message}` };
+    return { error: "Something went wrong saving your questions. Please try again." };
   }
 
   revalidatePath(`/app/courses/${courseId}`);
   return { success: true, questionSetId, setTitle: title };
+  } catch (err) {
+    console.error("Unexpected generation error:", err);
+    return { error: "Something went wrong. Please try again." };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -361,6 +384,7 @@ export async function generateQuestions(
 export async function generateWeakTopicQuestions(
   courseId: string
 ): Promise<WeakTopicGenerateState> {
+  try {
   if (!z.string().uuid().safeParse(courseId).success) {
     return { error: "Invalid course." };
   }
@@ -491,7 +515,7 @@ Generate exactly 5 exam-style practice questions that specifically target the we
 
   // 4. Create question_set row
   const questionSetId = randomUUID();
-  const title = `${course.title} – Weak Topics · ${new Date().toLocaleDateString("en-GB")}`;
+  const title = `${course.title} - Weak Topics - ${new Date().toLocaleDateString("en-GB")}`;
 
   const { error: qsError } = await supabase.from("question_sets").insert({
     id: questionSetId,
@@ -500,12 +524,16 @@ Generate exactly 5 exam-style practice questions that specifically target the we
     title,
     mode: "weak_topics",
   });
-  if (qsError) return { error: `Could not create question set: ${qsError.message}` };
+  if (qsError) {
+    console.error("Question set creation error:", qsError);
+    return { error: "Something went wrong. Please try again." };
+  }
 
   // 5. Call OpenAI
   const openai = new OpenAI({ apiKey: process.env.AI_API_KEY });
+  const WeakTopicAIResponseSchema = makeAIResponseSchema(5);
 
-  let parsed: z.infer<typeof AIResponseSchema>;
+  let parsed: z.infer<typeof WeakTopicAIResponseSchema>;
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4.1-mini",
@@ -518,11 +546,11 @@ Generate exactly 5 exam-style practice questions that specifically target the we
     });
 
     const raw = completion.choices[0]?.message?.content ?? "";
-    parsed = AIResponseSchema.parse(JSON.parse(raw));
+    parsed = WeakTopicAIResponseSchema.parse(JSON.parse(raw));
   } catch (err) {
+    console.error("Generation error:", err);
     await supabase.from("question_sets").delete().eq("id", questionSetId);
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    return { error: `AI generation failed: ${msg}` };
+    return { error: "Question generation is temporarily unavailable. Please try again." };
   }
 
   // 6. Insert questions
@@ -543,10 +571,15 @@ Generate exactly 5 exam-style practice questions that specifically target the we
   );
 
   if (qError) {
+    console.error("Question insert error:", qError);
     await supabase.from("question_sets").delete().eq("id", questionSetId);
-    return { error: `Failed to save questions: ${qError.message}` };
+    return { error: "Something went wrong saving your questions. Please try again." };
   }
 
   revalidatePath(`/app/courses/${courseId}`);
   return { questionSetId };
+  } catch (err) {
+    console.error("Unexpected generation error:", err);
+    return { error: "Something went wrong. Please try again." };
+  }
 }
