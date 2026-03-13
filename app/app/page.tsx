@@ -32,7 +32,7 @@ export default async function AppPage() {
   ] = await Promise.all([
     supabase
       .from("courses")
-      .select("id, title, created_at, question_sets(count)")
+      .select("id, title, is_premium, created_at, question_sets(count)")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false }),
     supabase
@@ -73,6 +73,7 @@ export default async function AppPage() {
   }
 
   const continueset = recentSets?.[0] ?? null;
+  const isAccountPremium = profile?.plan != null && profile.plan !== "free";
 
   return (
     <main className="max-w-4xl mx-auto px-6 py-10 space-y-10">
@@ -253,9 +254,19 @@ export default async function AppPage() {
                   href={`/app/courses/${course.id}`}
                   className="group block bg-white dark:bg-zinc-800 rounded-xl border border-gray-100 dark:border-zinc-700 p-5 hover:border-blue-200 dark:hover:border-blue-700 hover:bg-blue-50/40 dark:hover:bg-blue-900/20 transition-colors"
                 >
-                  <p className="font-semibold text-gray-900 dark:text-white group-hover:text-gray-700 dark:group-hover:text-zinc-200 transition-colors truncate">
-                    {course.title}
-                  </p>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <p className="font-semibold text-gray-900 dark:text-white group-hover:text-gray-700 dark:group-hover:text-zinc-200 transition-colors truncate">
+                      {course.title}
+                    </p>
+                    {(isAccountPremium || course.is_premium) && (
+                      <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+                        <svg width="8" height="8" viewBox="0 0 10 10" fill="currentColor">
+                          <path d="M5 1l1.2 2.4L9 4.1 7 6l.5 2.9L5 7.5 2.5 8.9 3 6 1 4.1l2.8-.7L5 1z" />
+                        </svg>
+                        Premium
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-3 mt-2.5 text-xs text-gray-400 dark:text-zinc-400">
                     <span>
                       {setCount} {setCount === 1 ? "set" : "sets"}
