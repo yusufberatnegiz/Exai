@@ -137,18 +137,18 @@ export default function GenerateForm({ courseId, isPremium = false, action }: Pr
         <p className="text-sm text-red-500 whitespace-pre-line">{state.error}</p>
       )}
       {state && "success" in state && (
-        <div className="rounded-xl border border-gray-100 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 gap-4">
+        <div className="rounded-xl border border-gray-100 dark:border-zinc-700 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 gap-4 bg-white dark:bg-zinc-800">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="text-sm font-medium text-gray-800 truncate">
+                <p className="text-sm font-medium text-gray-800 dark:text-zinc-200 truncate">
                   {state.setTitle}
                 </p>
-                <span className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-medium">
+                <span className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 font-medium">
                   New
                 </span>
               </div>
-              <p className="text-xs text-gray-400 mt-0.5">
+              <p className="text-xs text-gray-400 dark:text-zinc-400 mt-0.5">
                 {total} {total === 1 ? "question" : "questions"} · just generated
               </p>
             </div>
@@ -159,13 +159,13 @@ export default function GenerateForm({ courseId, isPremium = false, action }: Pr
               Practice
             </Link>
           </div>
-          <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-            <p className="text-xs text-gray-400">
+          <div className="px-4 py-2.5 bg-gray-50 dark:bg-zinc-900 border-t border-gray-100 dark:border-zinc-700 flex items-center justify-between">
+            <p className="text-xs text-gray-400 dark:text-zinc-500">
               Question set created successfully.
             </p>
             <Link
               href={`/app/courses/${courseId}/sets`}
-              className="text-xs text-gray-500 hover:text-gray-800 transition-colors"
+              className="text-xs text-gray-500 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-zinc-200 transition-colors"
             >
               View all sets →
             </Link>
