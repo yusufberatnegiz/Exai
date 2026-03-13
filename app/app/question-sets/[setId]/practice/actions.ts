@@ -189,7 +189,8 @@ export async function submitAttempt(
     .single();
 
   if (insertError || !attempt) {
-    return { error: `Could not save answer: ${insertError?.message ?? "unknown error"}` };
+    console.error("Attempt insert error:", insertError);
+    return { error: "Could not save your answer. Please try again." };
   }
 
   // Grade the answer

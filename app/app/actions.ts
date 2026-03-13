@@ -94,7 +94,10 @@ export async function deleteCourse(
     .eq("id", courseId)
     .eq("user_id", user.id);
 
-  if (error) return { error: error.message };
+  if (error) {
+    console.error("Delete course error:", error);
+    return { error: "Could not delete course. Please try again." };
+  }
 
   revalidatePath("/app");
   return { success: true };

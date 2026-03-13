@@ -61,7 +61,14 @@ function AuthForm() {
         password,
       });
       if (error) {
-        setError(error.message);
+        const msg = error.message.toLowerCase();
+        if (msg.includes("invalid login") || msg.includes("invalid credentials") || msg.includes("wrong password") || msg.includes("no user")) {
+          setError("Invalid email or password.");
+        } else if (msg.includes("email not confirmed")) {
+          setError("Please confirm your email address before signing in.");
+        } else {
+          setError("Sign in failed. Please try again.");
+        }
         setLoading(false);
         return;
       }
@@ -70,7 +77,14 @@ function AuthForm() {
     } else {
       const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) {
-        setError(error.message);
+        const msg = error.message.toLowerCase();
+        if (msg.includes("already registered") || msg.includes("already exists") || msg.includes("user already")) {
+          setError("An account with this email already exists. Try signing in.");
+        } else if (msg.includes("password") && msg.includes("weak")) {
+          setError("Password is too weak. Use at least 6 characters.");
+        } else {
+          setError("Could not create account. Please try again.");
+        }
         setLoading(false);
         return;
       }

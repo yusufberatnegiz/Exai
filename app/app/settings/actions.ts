@@ -21,7 +21,10 @@ export async function upgradePlan(): Promise<UpgradePlanState> {
     .update({ plan: "premium" })
     .eq("user_id", user.id);
 
-  if (error) return { error: error.message };
+  if (error) {
+    console.error("Upgrade plan error:", error);
+    return { error: "Could not upgrade plan. Please try again." };
+  }
 
   revalidatePath("/app/settings");
   return { success: true };

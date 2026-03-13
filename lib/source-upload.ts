@@ -166,7 +166,7 @@ async function runExtraction({
     await supabase.from("documents").update({ status: "ready" }).eq("id", documentId);
     await supabase.from("jobs").update({ status: "done" }).eq("id", jobId);
   } catch (err) {
-    const userMsg = err instanceof Error ? err.message : "This file could not be processed. Try uploading another file.";
+    const userMsg = "This file could not be processed. Try uploading another file.";
     console.error("File extraction error:", err);
     await supabase
       .from("documents")
