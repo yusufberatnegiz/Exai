@@ -46,7 +46,7 @@ export default function ResetPasswordPage() {
 
       <Card className="w-full max-w-sm">
         <CardHeader className="pb-4">
-          <CardTitle className="text-xl">Reset password</CardTitle>
+          <CardTitle className="text-xl">{sent ? "Reset Link Sent" : "Reset password"}</CardTitle>
           {!sent && (
             <CardDescription>
               Enter your email and we&apos;ll send you a reset link.

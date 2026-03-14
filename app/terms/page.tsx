@@ -173,10 +173,14 @@ export default function TermsPage() {
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">8. Refunds</h2>
             <p className="leading-relaxed">
-              Because Exai provides digital services, purchases are generally non-refundable, unless required by applicable law.
+              Purchases made through Exai may be eligible for a refund within <strong>14 days</strong> of the original purchase date.
             </p>
             <p className="leading-relaxed">
-              If you believe you were charged incorrectly or experienced a billing issue, please contact support and we will review your request.
+              If you would like to request a refund, please contact our support team within <strong>14 days of the transaction</strong>. 
+                Refund requests submitted after this period may not be eligible.
+            </p>
+            <p className="leading-relaxed">
+              Refunds are processed through our payment provider, Paddle, and may take several business days to appear in your account depending on your payment provider.
             </p>
           </section>
 
