@@ -221,6 +221,7 @@ async function handleSubscriptionActivated(data: Record<string, unknown>) {
   }
 
   const customerId = data.customer_id as string | undefined;
+  const subscriptionId = data.id as string | undefined;
   const supabase = createAdminClient();
 
   const { error } = await supabase
@@ -228,6 +229,7 @@ async function handleSubscriptionActivated(data: Record<string, unknown>) {
     .update({
       plan: "premium",
       ...(customerId ? { paddle_customer_id: customerId } : {}),
+      ...(subscriptionId ? { paddle_subscription_id: subscriptionId } : {}),
     })
     .eq("user_id", userId);
 
@@ -236,7 +238,7 @@ async function handleSubscriptionActivated(data: Record<string, unknown>) {
     throw error;
   }
 
-  console.log("[paddle/webhook] Subscription activated — user", userId, "is now premium");
+  console.log("[paddle/webhook] Subscription activated — user", userId, "is now premium, subscription:", subscriptionId);
 }
 
 async function handleSubscriptionCanceled(data: Record<string, unknown>) {

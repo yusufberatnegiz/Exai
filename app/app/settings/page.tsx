@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { ThemeToggle } from "./theme-toggle";
 import PlanUpgradeButton from "./plan-upgrade-button";
 import DeleteAccountButton from "./delete-account-button";
 import ChangePasswordForm from "./change-password-form";
+import CancelSubscriptionButton from "./cancel-subscription-button";
 
 export default async function SettingsPage({
   searchParams,
@@ -26,10 +26,6 @@ export default async function SettingsPage({
     .single();
 
   const isPremium = profile?.plan != null && profile.plan !== "free";
-  const paddlePortalUrl =
-    process.env.PADDLE_ENV === "production"
-      ? "https://customer.paddle.com/"
-      : "https://sandbox-customer.paddle.com/";
 
   return (
     <main className="max-w-2xl mx-auto px-6 py-10 space-y-8">
@@ -112,21 +108,14 @@ export default async function SettingsPage({
           <div className="px-5 py-4 border-b border-gray-100 dark:border-zinc-700">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Billing</h2>
           </div>
-          <div className="px-5 py-4 flex items-center justify-between">
+          <div className="px-5 py-4 flex items-center justify-between gap-6">
             <div>
-              <p className="text-sm font-medium text-gray-700 dark:text-zinc-300">Manage subscription</p>
+              <p className="text-sm font-medium text-gray-700 dark:text-zinc-300">Premium subscription</p>
               <p className="text-xs text-gray-400 dark:text-zinc-400 mt-0.5">
-                View invoices, update payment method, or cancel.
+                Cancels at the end of your current billing period.
               </p>
             </div>
-            <a
-              href={paddlePortalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-medium px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-600 text-gray-700 dark:text-zinc-300 hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors shrink-0"
-            >
-              Billing portal
-            </a>
+            <CancelSubscriptionButton />
           </div>
         </section>
       )}
