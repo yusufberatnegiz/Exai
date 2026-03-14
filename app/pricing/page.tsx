@@ -139,7 +139,7 @@ export default function PricingPage() {
                 </li>
               ))}
             </ul>
-            <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white" asChild>
+            <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" asChild>
               <Link href="/auth?mode=signup">Get Premium</Link>
             </Button>
           </div>
