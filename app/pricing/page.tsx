@@ -9,27 +9,24 @@ function IconCheck({ className }: { className?: string }) {
   );
 }
 
-const FREE_FEATURES = [
-  "3 courses",
-  "Up to 10 questions per generation",
-  "PDF and text uploads",
-  "Practice mode with AI grading",
-  "Weak topic tracking",
+const freePlanFeatures = [
+  "2 courses",
+  "Up to 15 materials per course",
+  "15 question generations per day",
+  "10 OCR image scans per day",
 ];
 
-const COURSE_FEATURES = [
-  "30 questions per generation for that course",
-  "No file size limit for that course",
+const perCoursePlanFeatures = [
+  "Unlimited generation for that course",
+  "Unlimited OCR for that course",
   "Unlimited materials for that course",
-  "One-time payment - no subscription",
 ];
 
-const PREMIUM_FEATURES = [
-  "Everything in Free",
-  "Unlimited courses",
-  "Up to 30 questions per generation",
-  "No file size limit on uploads",
-  "All current and future premium features",
+const premiumPlanFeatures = [
+  "All courses unlocked",
+  "Unlimited generation across all courses",
+  "Unlimited OCR across all courses",
+  "Unlimited materials across all courses",
 ];
 
 export default function PricingPage() {
@@ -72,75 +69,68 @@ export default function PricingPage() {
 
           {/* Free */}
           <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-6 flex flex-col">
-            <div className="mb-5">
-              <span className="text-xs font-bold text-gray-400 dark:text-zinc-500 bg-gray-50 dark:bg-zinc-800 px-2 py-1 rounded-md uppercase tracking-widest">
-                Free
-              </span>
-              <div className="mt-4 flex items-end gap-1">
-                <span className="text-4xl font-bold text-gray-900 dark:text-white">$0</span>
-              </div>
-              <p className="text-sm text-gray-500 dark:text-zinc-400 mt-1">Free forever</p>
+            <p className="text-xs font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-3">
+              Free
+            </p>
+            <div className="flex items-end gap-1 mb-1">
+              <span className="text-3xl font-bold text-gray-900 dark:text-white">$0</span>
             </div>
-            <ul className="space-y-3 flex-1 mb-8">
-              {FREE_FEATURES.map((f) => (
-                <li key={f} className="flex items-start gap-2.5 text-sm text-gray-500 dark:text-zinc-400">
-                  <IconCheck className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+            <p className="text-sm text-gray-500 dark:text-zinc-400 mb-6">Always free</p>
+            <ul className="space-y-2.5 mb-6 flex-1">
+              {freePlanFeatures.map((f) => (
+                <li key={f} className="flex items-start gap-2 text-sm text-gray-600 dark:text-zinc-300">
+                  <IconCheck className="h-4 w-4 text-gray-400 dark:text-zinc-500 mt-0.5 shrink-0" />
                   {f}
                 </li>
               ))}
             </ul>
             <Button variant="outline" className="w-full" asChild>
-              <Link href="/auth?mode=signup">Get started free</Link>
+              <Link href="/auth?mode=signup">Get Started</Link>
             </Button>
           </div>
 
-          {/* Course Upgrade */}
-          <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-6 flex flex-col">
-            <div className="mb-5">
-              <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 px-2 py-1 rounded-md uppercase tracking-widest">
-                Course
-              </span>
-              <div className="mt-4 flex items-end gap-1">
-                <span className="text-4xl font-bold text-gray-900 dark:text-white">$4</span>
-                <span className="text-sm text-gray-400 dark:text-zinc-500 mb-1.5">/ course</span>
-              </div>
-              <p className="text-sm text-gray-500 dark:text-zinc-400 mt-1">One-time per course</p>
+          {/* Premium Course */}
+          <div className="rounded-xl border-2 border-blue-600 dark:border-blue-500 bg-white dark:bg-zinc-950 p-6 flex flex-col">
+            <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-3">
+              Premium Course
+            </p>
+            <div className="flex items-end gap-1 mb-1">
+              <span className="text-3xl font-bold text-gray-900 dark:text-white">$4</span>
             </div>
-            <ul className="space-y-3 flex-1 mb-8">
-              {COURSE_FEATURES.map((f) => (
-                <li key={f} className="flex items-start gap-2.5 text-sm text-gray-500 dark:text-zinc-400">
-                  <IconCheck className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+            <p className="text-sm text-gray-500 dark:text-zinc-400 mb-6">per course, one-time</p>
+            <ul className="space-y-2.5 mb-6 flex-1">
+              {perCoursePlanFeatures.map((f) => (
+                <li key={f} className="flex items-start gap-2 text-sm text-gray-600 dark:text-zinc-300">
+                  <IconCheck className="h-4 w-4 text-blue-500 dark:text-blue-400 mt-0.5 shrink-0" />
                   {f}
                 </li>
               ))}
             </ul>
             <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white" asChild>
-              <Link href="/auth?mode=signup">Upgrade a course</Link>
+              <Link href="/auth?mode=signup">Upgrade a Course</Link>
             </Button>
           </div>
 
-          {/* Premium */}
-          <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-6 flex flex-col">
-            <div className="mb-5">
-              <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 px-2 py-1 rounded-md uppercase tracking-widest">
-                Premium
-              </span>
-              <div className="mt-4 flex items-end gap-1">
-                <span className="text-4xl font-bold text-gray-900 dark:text-white">$8</span>
-                <span className="text-sm text-gray-400 dark:text-zinc-500 mb-1.5">/ month</span>
-              </div>
-              <p className="text-sm text-gray-500 dark:text-zinc-400 mt-1">Cancel anytime</p>
+          {/* Premium Full */}
+          <div className="rounded-xl border-2 border-emerald-600 dark:border-emerald-500 bg-white dark:bg-zinc-950 p-6 flex flex-col">
+            <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-3">
+              Premium
+            </p>
+            <div className="flex items-end gap-1 mb-1">
+              <span className="text-3xl font-bold text-gray-900 dark:text-white">$8</span>
+              <span className="text-sm text-gray-400 dark:text-zinc-500 mb-1">/mo</span>
             </div>
-            <ul className="space-y-3 flex-1 mb-8">
-              {PREMIUM_FEATURES.map((f) => (
-                <li key={f} className="flex items-start gap-2.5 text-sm text-gray-500 dark:text-zinc-400">
-                  <IconCheck className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+            <p className="text-sm text-gray-500 dark:text-zinc-400 mb-6">All courses included</p>
+            <ul className="space-y-2.5 mb-6 flex-1">
+              {premiumPlanFeatures.map((f) => (
+                <li key={f} className="flex items-start gap-2 text-sm text-gray-600 dark:text-zinc-300">
+                  <IconCheck className="h-4 w-4 text-emerald-500 dark:text-emerald-400 mt-0.5 shrink-0" />
                   {f}
                 </li>
               ))}
             </ul>
             <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" asChild>
-              <Link href="/auth?mode=signup">Get Premium</Link>
+              <Link href="/auth?mode=signup">Upgrade to Premium</Link>
             </Button>
           </div>
 

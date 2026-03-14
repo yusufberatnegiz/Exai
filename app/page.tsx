@@ -388,7 +388,7 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white" asChild>
+              <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" asChild>
                 <Link href="/app/settings">Upgrade to Premium</Link>
               </Button>
           </div>

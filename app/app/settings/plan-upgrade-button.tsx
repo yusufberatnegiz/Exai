@@ -35,7 +35,7 @@ export default function PlanUpgradeButton({ userId, priceId }: Props) {
       <button
         onClick={handleUpgrade}
         disabled={launched}
-        className="px-4 py-2 text-sm font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-colors disabled:opacity-40"
+        className="px-4 py-2 text-sm font-semibold rounded-xl bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-40"
       >
         {launched ? "Opening checkout…" : "Upgrade to Premium - $8/mo"}
       </button>
