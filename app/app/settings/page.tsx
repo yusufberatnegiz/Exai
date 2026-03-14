@@ -4,6 +4,7 @@ import { ThemeToggle } from "./theme-toggle";
 import PlanUpgradeButton from "./plan-upgrade-button";
 import DeleteAccountButton from "./delete-account-button";
 import ChangePasswordForm from "./change-password-form";
+import ChangeEmailForm from "./change-email-form";
 import CancelSubscriptionButton from "./cancel-subscription-button";
 
 export default async function SettingsPage({
@@ -74,11 +75,12 @@ export default async function SettingsPage({
           <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Account</h2>
         </div>
         <div className="divide-y divide-gray-100 dark:divide-zinc-700">
-          <div className="px-5 py-4 flex items-center justify-between">
-            <p className="text-sm text-gray-500 dark:text-zinc-400">Email</p>
-            <p className="text-sm font-medium text-gray-800 dark:text-zinc-400">
-              {user.email ?? "-"}
-            </p>
+          <div className="px-5 py-4 flex items-center justify-between gap-6">
+            <div>
+              <p className="text-sm text-gray-500 dark:text-zinc-400">Email</p>
+              <p className="text-xs text-gray-400 dark:text-zinc-500 mt-0.5">{user.email ?? "-"}</p>
+            </div>
+            <ChangeEmailForm currentEmail={user.email ?? ""} />
           </div>
           <div className="px-5 py-4 flex items-center justify-between gap-6">
             <p className="text-sm text-gray-500 dark:text-zinc-400">Password</p>
