@@ -115,12 +115,12 @@ export default async function SettingsPage({
                 View invoices, update payment method, or cancel.
               </p>
             </div>
-            <Link
+            <a
               href="/api/paddle/portal"
               className="text-sm font-medium px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-600 text-gray-700 dark:text-zinc-300 hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors shrink-0"
             >
               Billing portal
-            </Link>
+            </a>
           </div>
         </section>
       )}
