@@ -128,14 +128,26 @@ function AuthForm() {
               required
               disabled={loading}
             />
-            <Input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              disabled={loading}
-            />
+            <div className="space-y-1">
+              <Input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={loading}
+              />
+              {mode === "signin" && (
+                <div className="text-right">
+                  <Link
+                    href="/reset-password"
+                    className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+              )}
+            </div>
 
             {error && <p className="text-sm text-destructive">{error}</p>}
             {notice && <p className="text-sm text-muted-foreground">{notice}</p>}
