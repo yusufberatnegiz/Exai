@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 
 export type UpgradePlanState = { error: string } | { success: true } | null;
 
@@ -27,5 +27,23 @@ export async function upgradePlan(): Promise<UpgradePlanState> {
   }
 
   revalidatePath("/app/settings");
+  return { success: true };
+}
+
+export async function deleteAccount(): Promise<{ error: string } | { success: true }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.deleteUser(user.id);
+
+  if (error) {
+    console.error("Delete account error:", error);
+    return { error: "Could not delete account. Please try again." };
+  }
+
   return { success: true };
 }

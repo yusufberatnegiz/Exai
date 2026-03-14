@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import SetsList from "./sets-list";
 
 export default async function SetsPage({
   params,
@@ -57,63 +58,16 @@ export default async function SetsPage({
       </div>
 
       <section className="pt-6 border-t border-gray-100 dark:border-zinc-700">
-        {!questionSets || questionSets.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-sm text-gray-400 dark:text-zinc-400">No question sets yet.</p>
-            <Link
-              href={`/app/courses/${courseId}/generate`}
-              className="mt-3 inline-block text-sm font-medium text-gray-700 dark:text-zinc-300 hover:text-gray-900 dark:hover:text-white underline underline-offset-2 transition-colors"
-            >
-              Generate your first set
-            </Link>
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-100 dark:divide-zinc-700 rounded-xl border border-gray-100 dark:border-zinc-700">
-            {questionSets.map((qs) => {
-              const count =
-                Array.isArray(qs.questions) && qs.questions.length > 0
-                  ? (qs.questions[0] as { count: number }).count
-                  : 0;
-              return (
-                <div
-                  key={qs.id}
-                  className="flex items-center justify-between px-4 py-3 gap-4 bg-white dark:bg-zinc-800"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-gray-800 dark:text-zinc-200 truncate">
-                        {qs.title}
-                      </p>
-                      {qs.mode === "weak_topics" && (
-                        <span className="shrink-0 text-xs font-medium px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
-                          Weak Topics
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-400 dark:text-zinc-400 mt-0.5">
-                      {count} {count === 1 ? "question" : "questions"} &middot;{" "}
-                      {new Date(qs.created_at).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Link
-                      href={`/app/question-sets/${qs.id}/exam`}
-                      className="text-xs font-medium px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                    >
-                      Exam
-                    </Link>
-                    <Link
-                      href={`/app/question-sets/${qs.id}/practice`}
-                      className="text-xs font-medium px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
-                    >
-                      Practice
-                    </Link>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <SetsList
+          sets={(questionSets ?? []).map((qs) => ({
+            id: qs.id,
+            title: qs.title,
+            created_at: qs.created_at,
+            mode: qs.mode,
+            questions: Array.isArray(qs.questions) ? (qs.questions as { count: number }[]) : [],
+          }))}
+          courseId={courseId}
+        />
       </section>
     </main>
   );

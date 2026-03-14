@@ -45,11 +45,28 @@ function AuthForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [showResend, setShowResend] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
 
   function switchMode(next: Mode) {
     setMode(next);
     setError(null);
     setNotice(null);
+    setShowResend(false);
+  }
+
+  async function handleResend() {
+    setResendLoading(true);
+    setError(null);
+    const supabase = createClient();
+    const { error } = await supabase.auth.resend({ type: "signup", email });
+    setResendLoading(false);
+    if (error) {
+      setError("Could not resend confirmation email. Please try again.");
+    } else {
+      setShowResend(false);
+      setNotice("Confirmation email resent. Check your inbox.");
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -79,6 +96,7 @@ function AuthForm() {
           setError("Invalid email or password.");
         } else if (msg.includes("email not confirmed")) {
           setError("Please confirm your email address before signing in.");
+          setShowResend(true);
         } else {
           setError("Sign in failed. Please try again.");
         }
@@ -184,6 +202,16 @@ function AuthForm() {
             )}
 
             {error && <p className="text-sm text-destructive">{error}</p>}
+            {showResend && (
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={resendLoading}
+                className="text-sm text-blue-600 dark:text-blue-400 underline underline-offset-2 hover:text-blue-700 dark:hover:text-blue-300 transition-colors disabled:opacity-50"
+              >
+                {resendLoading ? "Sending..." : "Resend confirmation email"}
+              </button>
+            )}
             {notice && <p className="text-sm text-muted-foreground">{notice}</p>}
 
             <Button type="submit" className="w-full" disabled={loading}>
