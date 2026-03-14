@@ -20,19 +20,21 @@ export async function GET() {
 
   const customerId = profile?.paddle_customer_id as string | null | undefined;
 
+  console.log("[paddle/portal] paddle_customer_id:", customerId ?? "null");
+
   if (!customerId) {
-    // No billing record - send to settings
     return NextResponse.redirect(
-      new URL("/app/settings", process.env.NEXT_PUBLIC_APP_URL ?? "https://www.exai.study")
+      new URL("/app/settings?portal_error=no_customer_id", process.env.NEXT_PUBLIC_APP_URL ?? "https://www.exai.study")
     );
   }
 
   let config;
   try {
     config = getPaddleServerConfig();
-  } catch {
+  } catch (e) {
+    console.error("[paddle/portal] Config error:", e);
     return NextResponse.redirect(
-      new URL("/app/settings", process.env.NEXT_PUBLIC_APP_URL ?? "https://www.exai.study")
+      new URL("/app/settings?portal_error=config", process.env.NEXT_PUBLIC_APP_URL ?? "https://www.exai.study")
     );
   }
 
