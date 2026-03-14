@@ -3,37 +3,56 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 
 // ---------------------------------------------------------------------------
-// Signature verification
+// Health check — GET /api/paddle/webhook
+// Lets you verify the route is deployed and env vars are set.
 // ---------------------------------------------------------------------------
 
-/**
- * Verifies the Paddle-Signature header using HMAC-SHA256.
- * Header format: ts=<timestamp>;h1=<hex-signature>
- * Signed payload:  <timestamp>:<raw-body>
- */
+export async function GET() {
+  const missing: string[] = [];
+  if (!process.env.PADDLE_WEBHOOK_SECRET) missing.push("PADDLE_WEBHOOK_SECRET");
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) missing.push("NEXT_PUBLIC_SUPABASE_URL");
+
+  if (missing.length > 0) {
+    console.error("[paddle/webhook] GET health check — MISSING ENV VARS:", missing);
+    return NextResponse.json({ ok: false, missing }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true, message: "Paddle webhook route is ready." });
+}
+
+// ---------------------------------------------------------------------------
+// Signature verification
+// Paddle-Signature header format: ts=<timestamp>;h1=<hex-signature>
+// Signed payload: <timestamp>:<raw-body>
+// ---------------------------------------------------------------------------
+
 function verifySignature(rawBody: string, signatureHeader: string, secret: string): boolean {
-  const tsPart = signatureHeader.split(";").find((p) => p.startsWith("ts="));
-  const h1Part = signatureHeader.split(";").find((p) => p.startsWith("h1="));
+  const parts = Object.fromEntries(
+    signatureHeader.split(";").map((p) => p.split("=") as [string, string])
+  );
+  const ts = parts["ts"];
+  const h1 = parts["h1"];
 
-  if (!tsPart || !h1Part) return false;
-
-  const ts = tsPart.slice(3);
-  const h1 = h1Part.slice(3);
+  if (!ts || !h1) {
+    console.error("[paddle/webhook] Signature header missing ts or h1. Header:", signatureHeader);
+    return false;
+  }
 
   const computed = createHmac("sha256", secret)
     .update(`${ts}:${rawBody}`)
     .digest("hex");
 
-  // Constant-time comparison to prevent timing attacks
   try {
     return timingSafeEqual(Buffer.from(computed, "hex"), Buffer.from(h1, "hex"));
-  } catch {
+  } catch (e) {
+    console.error("[paddle/webhook] timingSafeEqual error (likely length mismatch):", e);
     return false;
   }
 }
 
 // ---------------------------------------------------------------------------
-// Custom data shape we pass at checkout
+// Custom data shape passed at checkout
 // ---------------------------------------------------------------------------
 
 interface CheckoutCustomData {
@@ -43,38 +62,61 @@ interface CheckoutCustomData {
 }
 
 // ---------------------------------------------------------------------------
-// Route handler
+// POST handler
 // ---------------------------------------------------------------------------
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  console.log("[paddle/webhook] POST received");
+
   const webhookSecret = process.env.PADDLE_WEBHOOK_SECRET;
   if (!webhookSecret) {
-    console.error("Paddle webhook: PADDLE_WEBHOOK_SECRET not set");
+    console.error("[paddle/webhook] PADDLE_WEBHOOK_SECRET is not set — check Vercel env vars");
     return NextResponse.json({ error: "Misconfigured" }, { status: 500 });
   }
 
-  // Read raw body — must not be parsed before verification
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error("[paddle/webhook] SUPABASE_SERVICE_ROLE_KEY is not set — check Vercel env vars");
+    return NextResponse.json({ error: "Misconfigured" }, { status: 500 });
+  }
+
+  // Read raw body before any parsing — required for signature verification
   const rawBody = await req.text();
   const signatureHeader = req.headers.get("paddle-signature") ?? "";
 
-  if (!verifySignature(rawBody, signatureHeader, webhookSecret)) {
-    console.error("Paddle webhook: invalid signature");
+  console.log("[paddle/webhook] Signature header present:", !!signatureHeader);
+
+  if (!signatureHeader) {
+    console.error("[paddle/webhook] Missing Paddle-Signature header");
+    return NextResponse.json({ error: "Missing signature" }, { status: 401 });
+  }
+
+  const valid = verifySignature(rawBody, signatureHeader, webhookSecret);
+  if (!valid) {
+    console.error("[paddle/webhook] Signature verification FAILED — check PADDLE_WEBHOOK_SECRET matches Paddle dashboard");
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
+
+  console.log("[paddle/webhook] Signature verified OK");
 
   let event: Record<string, unknown>;
   try {
     event = JSON.parse(rawBody);
   } catch {
+    console.error("[paddle/webhook] Failed to parse JSON body");
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
   const eventType = event.event_type as string;
   const data = event.data as Record<string, unknown>;
 
+  console.log("[paddle/webhook] Event type:", eventType);
+
   try {
     switch (eventType) {
+      // Paddle fires transaction.completed for one-time payments.
+      // Some Paddle accounts also fire transaction.paid — handle both.
       case "transaction.completed":
+      case "transaction.paid":
         await handleTransactionCompleted(data);
         break;
 
@@ -88,11 +130,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         break;
 
       default:
-        // Acknowledge unhandled events — do not return 4xx
+        console.log("[paddle/webhook] Unhandled event type (safe to ignore):", eventType);
         break;
     }
   } catch (err) {
-    console.error(`Paddle webhook: error handling ${eventType}:`, err);
+    console.error(`[paddle/webhook] Error handling event ${eventType}:`, err);
     // Return 500 so Paddle retries
     return NextResponse.json({ error: "Handler error" }, { status: 500 });
   }
@@ -104,16 +146,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 // Event handlers
 // ---------------------------------------------------------------------------
 
-/**
- * transaction.completed fires for both one-time and first subscription payment.
- * We use custom_data.purchaseType to route to the right provisioning path.
- */
 async function handleTransactionCompleted(data: Record<string, unknown>) {
+  // custom_data can be a nested object or null
   const customData = (data.custom_data ?? {}) as CheckoutCustomData;
   const { userId, purchaseType, courseId } = customData;
 
+  console.log("[paddle/webhook] transaction.completed — custom_data:", customData);
+
   if (!userId) {
-    console.error("Paddle webhook: transaction.completed missing userId in custom_data", data);
+    console.error("[paddle/webhook] transaction.completed — missing userId in custom_data. Full data:", JSON.stringify(data));
     return;
   }
 
@@ -121,13 +162,13 @@ async function handleTransactionCompleted(data: Record<string, unknown>) {
 
   if (purchaseType === "course") {
     if (!courseId) {
-      console.error("Paddle webhook: transaction.completed course purchase missing courseId", data);
+      console.error("[paddle/webhook] transaction.completed — course purchase missing courseId. custom_data:", customData);
       return;
     }
 
     const transactionId = data.id as string | undefined;
+    console.log("[paddle/webhook] Upgrading course", courseId, "for user", userId);
 
-    // Idempotent: already premium is fine
     const { error } = await supabase
       .from("courses")
       .update({
@@ -138,14 +179,15 @@ async function handleTransactionCompleted(data: Record<string, unknown>) {
       .eq("user_id", userId);
 
     if (error) {
-      console.error("Paddle webhook: failed to upgrade course", courseId, error);
+      console.error("[paddle/webhook] Supabase error upgrading course:", courseId, error);
       throw error;
     }
 
-    console.log(`Paddle webhook: course ${courseId} upgraded for user ${userId}`);
+    console.log("[paddle/webhook] Course", courseId, "upgraded to premium for user", userId);
 
   } else if (purchaseType === "premium") {
     const customerId = data.customer_id as string | undefined;
+    console.log("[paddle/webhook] Upgrading profile to premium for user", userId);
 
     const { error } = await supabase
       .from("profiles")
@@ -156,27 +198,25 @@ async function handleTransactionCompleted(data: Record<string, unknown>) {
       .eq("user_id", userId);
 
     if (error) {
-      console.error("Paddle webhook: failed to upgrade profile to premium", userId, error);
+      console.error("[paddle/webhook] Supabase error upgrading profile to premium:", userId, error);
       throw error;
     }
 
-    console.log(`Paddle webhook: profile upgraded to premium for user ${userId}`);
+    console.log("[paddle/webhook] Profile upgraded to premium for user", userId);
 
   } else {
-    console.warn("Paddle webhook: transaction.completed unknown purchaseType", customData);
+    console.warn("[paddle/webhook] transaction.completed — unknown purchaseType:", purchaseType, "custom_data:", customData);
   }
 }
 
-/**
- * subscription.activated fires when a subscription becomes active.
- * Also handles subscription.updated (plan changes, renewals).
- */
 async function handleSubscriptionActivated(data: Record<string, unknown>) {
   const customData = (data.custom_data ?? {}) as CheckoutCustomData;
   const { userId } = customData;
 
+  console.log("[paddle/webhook] subscription.activated — custom_data:", customData);
+
   if (!userId) {
-    console.warn("Paddle webhook: subscription event missing userId in custom_data");
+    console.warn("[paddle/webhook] subscription.activated — missing userId in custom_data. Full data:", JSON.stringify(data));
     return;
   }
 
@@ -192,22 +232,21 @@ async function handleSubscriptionActivated(data: Record<string, unknown>) {
     .eq("user_id", userId);
 
   if (error) {
-    console.error("Paddle webhook: failed to activate subscription for user", userId, error);
+    console.error("[paddle/webhook] Supabase error activating subscription for user:", userId, error);
     throw error;
   }
 
-  console.log(`Paddle webhook: subscription activated for user ${userId}`);
+  console.log("[paddle/webhook] Subscription activated — user", userId, "is now premium");
 }
 
-/**
- * subscription.canceled — downgrade user back to free plan.
- */
 async function handleSubscriptionCanceled(data: Record<string, unknown>) {
   const customData = (data.custom_data ?? {}) as CheckoutCustomData;
   const { userId } = customData;
 
+  console.log("[paddle/webhook] subscription.canceled — custom_data:", customData);
+
   if (!userId) {
-    console.warn("Paddle webhook: subscription.canceled missing userId in custom_data");
+    console.warn("[paddle/webhook] subscription.canceled — missing userId. Full data:", JSON.stringify(data));
     return;
   }
 
@@ -219,9 +258,9 @@ async function handleSubscriptionCanceled(data: Record<string, unknown>) {
     .eq("user_id", userId);
 
   if (error) {
-    console.error("Paddle webhook: failed to downgrade user to free", userId, error);
+    console.error("[paddle/webhook] Supabase error downgrading user to free:", userId, error);
     throw error;
   }
 
-  console.log(`Paddle webhook: subscription canceled, user ${userId} downgraded to free`);
+  console.log("[paddle/webhook] Subscription canceled — user", userId, "downgraded to free");
 }
