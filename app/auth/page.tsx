@@ -109,12 +109,20 @@ function AuthForm() {
       const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) {
         const msg = error.message.toLowerCase();
-        if (msg.includes("already registered") || msg.includes("already exists") || msg.includes("user already")) {
+        if (
+          msg.includes("already registered") ||
+          msg.includes("already exists") ||
+          msg.includes("user already") ||
+          msg.includes("email already") ||
+          msg.includes("already in use") ||
+          msg.includes("duplicate") ||
+          (error as { status?: number }).status === 422
+        ) {
           setError("An account with this email already exists. Try signing in.");
         } else if (msg.includes("password") && msg.includes("weak")) {
           setError("Password is too weak. Use at least 8 characters.");
         } else {
-          setError("Could not create account. Please try again.");
+          setError(`Could not create account: ${error.message}`);
         }
         setLoading(false);
         return;
