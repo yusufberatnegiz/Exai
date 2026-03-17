@@ -18,7 +18,7 @@ export default async function GeneratePage({
 
   if (!user) redirect("/auth");
 
-  const [{ data: course }, { data: profile }] = await Promise.all([
+  const [{ data: course }, { data: profile }, { data: examFiles }] = await Promise.all([
     supabase
       .from("courses")
       .select("id, title, is_premium")
@@ -26,6 +26,12 @@ export default async function GeneratePage({
       .eq("user_id", user.id)
       .single(),
     supabase.from("profiles").select("plan, daily_gen_count, daily_gen_date").eq("user_id", user.id).single(),
+    supabase
+      .from("exam_files")
+      .select("id, filename, file_size, created_at")
+      .eq("course_id", courseId)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false }),
   ]);
 
   if (!course) notFound();
@@ -96,7 +102,12 @@ export default async function GeneratePage({
       )}
 
       <section className="space-y-4 pt-6 border-t border-gray-100 dark:border-zinc-700">
-        <GenerateForm courseId={courseId} action={generateQuestions} isPremium={isPremium} />
+        <GenerateForm
+          courseId={courseId}
+          action={generateQuestions}
+          isPremium={isPremium}
+          savedExamFiles={examFiles ?? []}
+        />
       </section>
     </main>
   );

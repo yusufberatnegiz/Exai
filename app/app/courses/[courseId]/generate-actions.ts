@@ -178,6 +178,9 @@ export async function generateQuestions(
   try {
   const courseId = formData.get("courseId") as string;
   const examFiles = formData.getAll("examFiles") as File[];
+  const savedExamFileIds = (formData.getAll("savedExamFileId") as string[]).filter(
+    (id) => z.string().uuid().safeParse(id).success
+  );
   const pastedText = ((formData.get("pastedText") as string) ?? "").trim();
   const instructions = ((formData.get("instructions") as string) ?? "").trim().slice(0, 500);
 
@@ -187,7 +190,7 @@ export async function generateQuestions(
 
   const validExamFiles = examFiles.filter((f) => f instanceof File && f.size > 0);
 
-  if (validExamFiles.length === 0 && !pastedText) {
+  if (validExamFiles.length === 0 && savedExamFileIds.length === 0 && !pastedText) {
     return { error: "Provide a past exam file or paste exam text - at least one is required." };
   }
 
@@ -277,11 +280,37 @@ export async function generateQuestions(
   }
 
   // ---------------------------------------------------------------------------
-  // 2. Extract exam context from provided files + pasted text
+  // 2. Extract exam context from provided files + saved files + pasted text
   // ---------------------------------------------------------------------------
 
   let examContext = pastedText.slice(0, 4000);
   const fileWarnings: string[] = [];
+
+  // Download and process saved exam files from storage
+  if (savedExamFileIds.length > 0) {
+    const { data: savedFiles } = await supabase
+      .from("exam_files")
+      .select("filename, storage_path")
+      .in("id", savedExamFileIds)
+      .eq("user_id", user.id);
+
+    for (const sf of savedFiles ?? []) {
+      const { data: blob } = await supabase.storage
+        .from("exam-uploads")
+        .download(sf.storage_path);
+      if (!blob) continue;
+      const buffer = await blob.arrayBuffer();
+      const ext = sf.filename.split(".").pop()?.toLowerCase() ?? "";
+      if (ext === "pdf") {
+        const extracted = await extractTextFromPdf(buffer);
+        if (extracted.trim().length >= 50) examContext += "\n\n" + extracted.slice(0, 3000);
+      } else if (["jpg", "jpeg", "png"].includes(ext)) {
+        const mimeType = ext === "png" ? "image/png" : "image/jpeg";
+        const text = await extractTextWithOCR(buffer, mimeType);
+        if (text.trim().length >= 20) examContext += "\n\n" + text.slice(0, 3000);
+      }
+    }
+  }
 
   for (const file of validExamFiles) {
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
