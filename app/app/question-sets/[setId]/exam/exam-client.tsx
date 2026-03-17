@@ -36,7 +36,7 @@ type QuestionSet = {
   courseTitle: string;
 };
 
-type ExamPhase = "active" | "submitting" | "complete";
+type ExamPhase = "setup" | "active" | "submitting" | "complete";
 
 type Props = {
   questionSet: QuestionSet;
@@ -44,7 +44,16 @@ type Props = {
   action: (_prev: AttemptResult, formData: FormData) => Promise<AttemptResult>;
 };
 
-const SECONDS_PER_QUESTION = 120; // 2 minutes
+// null = no limit, -1 = custom
+const TIMER_OPTIONS: { label: string; seconds: number | null }[] = [
+  { label: "No limit", seconds: null },
+  { label: "15 min", seconds: 15 * 60 },
+  { label: "30 min", seconds: 30 * 60 },
+  { label: "45 min", seconds: 45 * 60 },
+  { label: "60 min", seconds: 60 * 60 },
+  { label: "90 min", seconds: 90 * 60 },
+  { label: "Custom", seconds: -1 },
+];
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -64,12 +73,17 @@ export default function ExamClient({ questionSet, questions, action }: Props) {
   const total = questions.length;
   const storageKey = `exam-answers-${questionSet.id}`;
 
-  const [phase, setPhase] = useState<ExamPhase>("active");
-  const [timeLeft, setTimeLeft] = useState(total * SECONDS_PER_QUESTION);
+  const [phase, setPhase] = useState<ExamPhase>("setup");
+  const [timeLimit, setTimeLimit] = useState<number | null>(null); // null = no limit
+  const [timeLeft, setTimeLeft] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [currentIndex, setCurrentIndex] = useState(0);
   const [grades, setGrades] = useState<Record<string, GradeResult | null>>({});
   const [reviewMode, setReviewMode] = useState(false);
+
+  // Setup state
+  const [selectedTime, setSelectedTime] = useState<number | null | -1>(null);
+  const [customMinutes, setCustomMinutes] = useState("30");
 
   // Refs to avoid stale closures
   const answersRef = useRef<Record<string, string>>({});
@@ -90,12 +104,12 @@ export default function ExamClient({ questionSet, questions, action }: Props) {
 
   // ── Timer countdown ──────────────────────────────────────────────────────────
   useEffect(() => {
-    if (phase !== "active") return;
+    if (phase !== "active" || timeLimit === null) return;
     const id = setInterval(() => {
       setTimeLeft((t) => Math.max(0, t - 1));
     }, 1000);
     return () => clearInterval(id);
-  }, [phase]);
+  }, [phase, timeLimit]);
 
   // ── Warn before leaving during active exam ───────────────────────────────────
   useEffect(() => {
@@ -155,10 +169,97 @@ export default function ExamClient({ questionSet, questions, action }: Props) {
   useEffect(() => { handleSubmitRef.current = handleSubmitExam; }, [handleSubmitExam]);
 
   useEffect(() => {
-    if (timeLeft === 0 && phase === "active") {
+    if (timeLimit !== null && timeLeft === 0 && phase === "active") {
       handleSubmitRef.current();
     }
-  }, [timeLeft, phase]);
+  }, [timeLeft, phase, timeLimit]);
+
+  // ── Setup screen ─────────────────────────────────────────────────────────────
+  if (phase === "setup") {
+    const showCustomInput = selectedTime === -1;
+
+    function handleStart() {
+      let limitSeconds: number | null = null;
+      if (selectedTime === -1) {
+        const mins = parseInt(customMinutes, 10);
+        limitSeconds = isNaN(mins) || mins < 1 ? null : mins * 60;
+      } else {
+        limitSeconds = selectedTime as number | null;
+      }
+      setTimeLimit(limitSeconds);
+      setTimeLeft(limitSeconds ?? 0);
+      setPhase("active");
+    }
+
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-zinc-900 flex flex-col items-center justify-center px-4">
+        <div className="w-full max-w-md space-y-6">
+          {/* Header */}
+          <div className="text-center space-y-2">
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 uppercase tracking-wide">
+              Exam
+            </span>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{questionSet.title}</h1>
+            <p className="text-sm text-gray-500 dark:text-zinc-400">{total} questions</p>
+          </div>
+
+          {/* Timer picker */}
+          <div className="bg-white dark:bg-zinc-800 rounded-2xl border border-gray-200 dark:border-zinc-700 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-zinc-700">
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">Time limit</p>
+            </div>
+            <div className="p-4 grid grid-cols-3 gap-2">
+              {TIMER_OPTIONS.map(({ label, seconds }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setSelectedTime(seconds as number | null)}
+                  className={`py-3 rounded-xl text-sm font-medium border-2 transition-colors ${
+                    selectedTime === seconds
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400"
+                      : "border-gray-200 dark:border-zinc-600 text-gray-600 dark:text-zinc-300 hover:border-gray-300 dark:hover:border-zinc-500 bg-white dark:bg-zinc-800"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {showCustomInput && (
+              <div className="px-4 pb-4">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={300}
+                    value={customMinutes}
+                    onChange={(e) => setCustomMinutes(e.target.value)}
+                    placeholder="Minutes"
+                    className="flex-1 text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-800 dark:text-zinc-200 placeholder:text-gray-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-500 dark:text-zinc-400 shrink-0">minutes</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Button
+            onClick={handleStart}
+            disabled={selectedTime === undefined}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            Start Exam
+          </Button>
+
+          <Link
+            href={`/app/courses/${questionSet.courseId}`}
+            className="block text-center text-sm text-gray-400 dark:text-zinc-500 hover:text-gray-600 dark:hover:text-zinc-300 transition-colors"
+          >
+            Back to course
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   // ── Submitting screen ────────────────────────────────────────────────────────
   if (phase === "submitting") {
@@ -174,13 +275,13 @@ export default function ExamClient({ questionSet, questions, action }: Props) {
   if (phase === "complete" && reviewMode) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-zinc-900 flex flex-col">
-        <ExamNav questionSet={questionSet} phase="complete" timeLeft={0} total={total} />
+        <ExamNav questionSet={questionSet} phase="complete" timeLeft={0} timeLimit={timeLimit} total={total} />
         <main className="max-w-[720px] mx-auto w-full px-4 sm:px-6 py-10 space-y-5">
           <button
             onClick={() => setReviewMode(false)}
             className="text-sm text-gray-400 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-zinc-300 transition-colors"
           >
-            ← Back to results
+            Back to results
           </button>
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Question Review</h2>
           {questions.map((q, i) => {
@@ -263,7 +364,7 @@ export default function ExamClient({ questionSet, questions, action }: Props) {
 
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-zinc-900 flex flex-col">
-        <ExamNav questionSet={questionSet} phase="complete" timeLeft={0} total={total} />
+        <ExamNav questionSet={questionSet} phase="complete" timeLeft={0} timeLimit={timeLimit} total={total} />
         <main className="flex-1 flex items-center justify-center px-6 py-16">
           <div className="max-w-md w-full space-y-8">
             <div className="text-center space-y-1">
@@ -341,6 +442,7 @@ export default function ExamClient({ questionSet, questions, action }: Props) {
         questionSet={questionSet}
         phase="active"
         timeLeft={timeLeft}
+        timeLimit={timeLimit}
         total={total}
         onSubmit={handleSubmitExam}
       />
@@ -409,14 +511,14 @@ export default function ExamClient({ questionSet, questions, action }: Props) {
             disabled={currentIndex === 0}
             className="text-sm text-gray-400 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-zinc-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors px-1 py-1"
           >
-            ← Previous
+            Previous
           </button>
           {currentIndex < total - 1 ? (
             <Button
               onClick={() => setCurrentIndex((i) => i + 1)}
               className="bg-blue-600 hover:bg-blue-700 text-white px-6"
             >
-              Next →
+              Next
             </Button>
           ) : (
             <Button
@@ -438,16 +540,18 @@ function ExamNav({
   questionSet,
   phase,
   timeLeft,
+  timeLimit,
   total,
   onSubmit,
 }: {
   questionSet: QuestionSet;
   phase: ExamPhase;
   timeLeft: number;
+  timeLimit: number | null;
   total: number;
   onSubmit?: () => void;
 }) {
-  const isLow = timeLeft < 60;
+  const isLow = timeLimit !== null && timeLeft < 60;
   return (
     <nav className="bg-white dark:bg-zinc-950 border-b border-gray-100 dark:border-zinc-800 shrink-0">
       <div className="max-w-[720px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
@@ -469,9 +573,11 @@ function ExamNav({
         <div className="flex items-center gap-3 shrink-0">
           {phase === "active" && (
             <>
-              <span className={`font-mono text-sm font-semibold tabular-nums ${isLow ? "text-red-500" : "text-gray-600 dark:text-zinc-300"}`}>
-                {formatTime(timeLeft)}
-              </span>
+              {timeLimit !== null && (
+                <span className={`font-mono text-sm font-semibold tabular-nums ${isLow ? "text-red-500" : "text-gray-600 dark:text-zinc-300"}`}>
+                  {formatTime(timeLeft)}
+                </span>
+              )}
               {onSubmit && (
                 <button
                   onClick={onSubmit}

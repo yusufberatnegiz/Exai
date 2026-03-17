@@ -25,13 +25,17 @@ export default async function GeneratePage({
       .eq("id", courseId)
       .eq("user_id", user.id)
       .single(),
-    supabase.from("profiles").select("plan").eq("user_id", user.id).single(),
+    supabase.from("profiles").select("plan, daily_gen_count, daily_gen_date").eq("user_id", user.id).single(),
   ]);
 
   if (!course) notFound();
 
   const isAccountPremium = profile?.plan != null && profile.plan !== "free";
   const isPremium = isAccountPremium || (course.is_premium ?? false);
+
+  const todayStr = new Date().toISOString().split("T")[0];
+  const usedToday = profile?.daily_gen_date === todayStr ? (profile.daily_gen_count ?? 0) : 0;
+  const FREE_DAILY_LIMIT = 15;
 
   return (
     <main className="max-w-3xl mx-auto px-6 py-10 space-y-8">
@@ -59,6 +63,38 @@ export default async function GeneratePage({
       </div>
 
       {/* Generate form */}
+      {/* Usage counter - free users only */}
+      {!isPremium && (
+        <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl bg-white dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700">
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-xs font-medium text-gray-600 dark:text-zinc-400">Daily generations</p>
+              <p className="text-xs font-semibold tabular-nums text-gray-700 dark:text-zinc-300">
+                {usedToday} / {FREE_DAILY_LIMIT}
+              </p>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-gray-100 dark:bg-zinc-700 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  usedToday >= FREE_DAILY_LIMIT
+                    ? "bg-red-500"
+                    : usedToday >= FREE_DAILY_LIMIT * 0.8
+                    ? "bg-amber-500"
+                    : "bg-blue-500"
+                }`}
+                style={{ width: `${Math.min(100, (usedToday / FREE_DAILY_LIMIT) * 100)}%` }}
+              />
+            </div>
+          </div>
+          <Link
+            href="/app/settings"
+            className="shrink-0 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+          >
+            Upgrade
+          </Link>
+        </div>
+      )}
+
       <section className="space-y-4 pt-6 border-t border-gray-100 dark:border-zinc-700">
         <GenerateForm courseId={courseId} action={generateQuestions} isPremium={isPremium} />
       </section>
