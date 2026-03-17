@@ -68,7 +68,7 @@ export default async function GeneratePage({
         <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl bg-white dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700">
           <div className="flex-1">
             <div className="flex items-center justify-between mb-1.5">
-              <p className="text-xs font-medium text-gray-600 dark:text-zinc-400">Daily generations</p>
+              <p className="text-xs font-medium text-gray-600 dark:text-zinc-400">Questions generated today</p>
               <p className="text-xs font-semibold tabular-nums text-gray-700 dark:text-zinc-300">
                 {usedToday} / {FREE_DAILY_LIMIT}
               </p>

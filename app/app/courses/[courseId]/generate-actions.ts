@@ -211,15 +211,19 @@ export async function generateQuestions(
   const isAccountPremium = profile?.plan != null && profile.plan !== "free";
   const isPremium = isAccountPremium || (course.is_premium ?? false);
   const maxQuestions = isPremium ? PREMIUM_MAX_QUESTIONS : FREE_PLAN_MAX_QUESTIONS;
-  const total = Math.min(maxQuestions, Math.max(1, parseInt(formData.get("total") as string) || 5));
+  let total = Math.min(maxQuestions, Math.max(1, parseInt(formData.get("total") as string) || 5));
 
-  // ── Free-plan: daily generation limit (15) ──────────────────────────────────
+  // ── Free-plan: daily question limit (15 questions total per day) ─────────────
   if (!isPremium) {
     const todayStr = new Date().toISOString().split("T")[0];
     const isNewDay = !profile?.daily_gen_date || profile.daily_gen_date !== todayStr;
     const usedToday = isNewDay ? 0 : (profile?.daily_gen_count ?? 0);
-    if (usedToday >= 15) {
-      return { error: "Daily generation limit reached (15 per day). Try again tomorrow or upgrade." };
+    const remaining = Math.max(0, 15 - usedToday);
+    if (remaining === 0) {
+      return { error: "Daily question limit reached (15 questions per day). Try again tomorrow or upgrade." };
+    }
+    if (total > remaining) {
+      total = remaining;
     }
   }
 
@@ -406,7 +410,7 @@ export async function generateQuestions(
     await supabase
       .from("profiles")
       .update({
-        daily_gen_count: usedGenToday + 1,
+        daily_gen_count: usedGenToday + total,
         daily_gen_date: todayStr,
         ...(imageFiles.length > 0
           ? { daily_ocr_count: usedOcrToday + imageFiles.length, daily_ocr_date: todayStr }
