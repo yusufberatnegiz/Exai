@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Sidebar from "./sidebar";
 import PaddleRetainInit from "@/components/paddle-retain-init";
+import RememberMeGuard from "@/components/remember-me-guard";
 
 export default async function AppLayout({
   children,
@@ -24,6 +25,7 @@ export default async function AppLayout({
     <div className="flex min-h-screen bg-gray-50 dark:bg-zinc-900">
       <Sidebar userEmail={user.email ?? null} courses={courses ?? []} />
       <div className="flex-1 min-w-0">{children}</div>
+      <RememberMeGuard />
       {user.email && (
         <PaddleRetainInit
           email={user.email}

@@ -42,6 +42,7 @@ function AuthForm() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +104,12 @@ function AuthForm() {
         }
         setLoading(false);
         return;
+      }
+      if (rememberMe) {
+        localStorage.removeItem("exai_no_remember");
+      } else {
+        localStorage.setItem("exai_no_remember", "1");
+        sessionStorage.setItem("exai_session_alive", "1");
       }
       router.push("/app");
       router.refresh();
@@ -197,6 +204,19 @@ function AuthForm() {
                 </div>
               )}
             </div>
+
+            {mode === "signin" && (
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="shrink-0 accent-blue-600"
+                  disabled={loading}
+                />
+                <span className="text-xs text-muted-foreground">Remember me</span>
+              </label>
+            )}
 
             {mode === "signup" && (
               <label className="flex items-start gap-2 cursor-pointer">
