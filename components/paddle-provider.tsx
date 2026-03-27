@@ -7,6 +7,9 @@ declare global {
     Paddle?: {
       Environment: { set: (env: string) => void };
       Initialize: (options: { token: string }) => void;
+      Retain?: {
+        initializeProfiling: (opts: { email: string; paddleCustomerId?: string }) => void;
+      };
     };
   }
 }
