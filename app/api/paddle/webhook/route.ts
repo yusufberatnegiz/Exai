@@ -228,6 +228,7 @@ async function handleSubscriptionActivated(data: Record<string, unknown>) {
     .from("profiles")
     .update({
       plan: "premium",
+      cancel_at_period_end: false,
       ...(customerId ? { paddle_customer_id: customerId } : {}),
       ...(subscriptionId ? { paddle_subscription_id: subscriptionId } : {}),
     })
@@ -254,9 +255,10 @@ async function handleSubscriptionCanceled(data: Record<string, unknown>) {
 
   const supabase = createAdminClient();
 
+  // subscription.canceled fires at end of billing period — safe to downgrade now.
   const { error } = await supabase
     .from("profiles")
-    .update({ plan: "free" })
+    .update({ plan: "free", cancel_at_period_end: false, paddle_subscription_id: null })
     .eq("user_id", userId);
 
   if (error) {

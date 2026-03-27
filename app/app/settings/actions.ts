@@ -69,14 +69,19 @@ export async function cancelSubscription(): Promise<{ error: string } | { succes
     return { error: "Could not cancel subscription. Please try again." };
   }
 
+  // Do NOT downgrade immediately. Premium access continues until the billing
+  // period ends. Paddle fires subscription.canceled at that point, which
+  // triggers the actual downgrade via webhook.
   const admin = createAdminClient();
-  await admin.from("profiles").update({ plan: "free", paddle_subscription_id: null }).eq("user_id", user.id);
+  await admin.from("profiles").update({ cancel_at_period_end: true }).eq("user_id", user.id);
 
   revalidatePath("/app/settings");
   return { success: true };
 }
 
-export async function deleteAccount(): Promise<{ error: string } | { success: true }> {
+export async function deleteAccount(confirmation: string): Promise<{ error: string } | { success: true }> {
+  if (confirmation !== "DELETE") return { error: "Invalid confirmation." };
+
   const supabase = await createClient();
   const {
     data: { user },

@@ -22,11 +22,12 @@ export default async function SettingsPage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("plan")
+    .select("plan, cancel_at_period_end")
     .eq("user_id", user.id)
     .single();
 
   const isPremium = profile?.plan != null && profile.plan !== "free";
+  const cancelAtPeriodEnd = profile?.cancel_at_period_end === true;
 
   return (
     <main className="max-w-2xl mx-auto px-6 py-10 space-y-8">
@@ -113,11 +114,17 @@ export default async function SettingsPage({
           <div className="px-5 py-4 flex items-center justify-between gap-6">
             <div>
               <p className="text-sm font-medium text-gray-700 dark:text-zinc-300">Premium subscription</p>
-              <p className="text-xs text-gray-400 dark:text-zinc-400 mt-0.5">
-                Cancels at the end of your current billing period.
-              </p>
+              {cancelAtPeriodEnd ? (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                  Cancels at end of billing period. Access remains until then.
+                </p>
+              ) : (
+                <p className="text-xs text-gray-400 dark:text-zinc-400 mt-0.5">
+                  Active - renews monthly.
+                </p>
+              )}
             </div>
-            <CancelSubscriptionButton />
+            {!cancelAtPeriodEnd && <CancelSubscriptionButton />}
           </div>
         </section>
       )}
