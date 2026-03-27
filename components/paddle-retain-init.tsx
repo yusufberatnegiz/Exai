@@ -14,11 +14,18 @@ type Props = {
 export default function PaddleRetainInit({ email, paddleCustomerId }: Props) {
   useEffect(() => {
     function init() {
-      if (!window.Paddle?.Retain) return;
-      window.Paddle.Retain.initializeProfiling({
-        email,
-        ...(paddleCustomerId ? { paddleCustomerId } : {}),
-      });
+      try {
+        const retain = window.Paddle?.Retain;
+        if (!retain) return;
+        // profitwell.js may be blocked by ad blockers - guard before calling
+        if (typeof retain.initializeProfiling !== "function") return;
+        retain.initializeProfiling({
+          email,
+          ...(paddleCustomerId ? { paddleCustomerId } : {}),
+        });
+      } catch {
+        // Silently ignore - Retain is non-critical
+      }
     }
 
     // Paddle script may still be loading - retry until available
